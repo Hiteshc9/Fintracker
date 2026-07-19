@@ -9,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 :root{
   --bg:#1b2120;
@@ -342,6 +344,7 @@ footer.appfoot{text-align:center; padding:30px 0 10px; color:var(--ink-faint); f
     <div class="settings-pop" id="settingsPop">
       <button id="btnBackup">⬇ Backup data (.json)</button>
       <button id="btnRestoreTrigger">⬆ Restore from backup</button>
+      <button id="btnSyncCloud">⟳ Sync with cloud</button>
       <button id="btnResetAll">⨯ Reset all data</button>
     </div>
     <input type="file" id="restoreFile" accept=".json" style="display:none;">
@@ -511,7 +514,18 @@ footer.appfoot{text-align:center; padding:30px 0 10px; color:var(--ink-faint); f
 /* ============================ BUSINESS INFO ============================ */
 const BUSINESS_NAME = 'Shree Traders';
 
+const REMOTE_SYNC_CONFIG = {
+  enabled: false,
+  firebaseConfig: {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_AUTH_DOMAIN",
+    databaseURL: "YOUR_DATABASE_URL",
+    projectId: "YOUR_PROJECT_ID"
+  },
+  rootPath: 'fintracker_sync/default'
+};
 
+let remoteSyncEnabled = false;
 
 /* ============================ DATA LAYER ============================ */
 const STORAGE_KEY = 'fintracker_db_v1';
@@ -541,7 +555,8 @@ function freshDB(){
     fieldDefs:{
       customer:{partyFields:[], txnFields:[], txnTypes:{}},
       supplier:{partyFields:[], txnFields:[], txnTypes:{}}
-    }
+    },
+    meta:{ updatedAt: Date.now() }
   };
 }
 function ensureShape(){
@@ -555,7 +570,114 @@ function ensureShape(){
     if(!DB.fieldDefs[t].txnFields) DB.fieldDefs[t].txnFields=[];
     if(!DB.fieldDefs[t].txnTypes) DB.fieldDefs[t].txnTypes={};
   });
+  if(!DB.meta || typeof DB.meta !== 'object') DB.meta={ updatedAt: Date.now() };
+  if(!DB.meta.updatedAt) DB.meta.updatedAt = Date.now();
 }
+function touchDB(){
+  if(!DB.meta || typeof DB.meta !== 'object') DB.meta={};
+  DB.meta.updatedAt = Date.now();
+}
+function mergeArrays(a,b){
+  return Array.from(new Set([...(Array.isArray(a)?a:[]), ...(Array.isArray(b)?b:[])]));
+}
+function mergeDBs(local, remote){
+  const merged = freshDB();
+  merged.parties = Object.assign({}, local.parties, remote.parties);
+  merged.transactions = Object.assign({}, local.transactions, remote.transactions);
+  merged.fieldDefs = {
+    customer: {
+      partyFields: mergeArrays(local.fieldDefs.customer.partyFields, remote.fieldDefs.customer.partyFields),
+      txnFields: mergeArrays(local.fieldDefs.customer.txnFields, remote.fieldDefs.customer.txnFields),
+      txnTypes: Object.assign({}, local.fieldDefs.customer.txnTypes, remote.fieldDefs.customer.txnTypes)
+    },
+    supplier: {
+      partyFields: mergeArrays(local.fieldDefs.supplier.partyFields, remote.fieldDefs.supplier.partyFields),
+      txnFields: mergeArrays(local.fieldDefs.supplier.txnFields, remote.fieldDefs.supplier.txnFields),
+      txnTypes: Object.assign({}, local.fieldDefs.supplier.txnTypes, remote.fieldDefs.supplier.txnTypes)
+    }
+  };
+  merged.meta.updatedAt = Math.max(local.meta.updatedAt||0, remote.meta.updatedAt||0, Date.now());
+  return merged;
+}
+function initializeRemoteSync(){
+  if(!REMOTE_SYNC_CONFIG.enabled) return;
+  if(typeof firebase === 'undefined' || !firebase || !firebase.initializeApp){
+    toast('Remote sync library not loaded.', true);
+    return;
+  }
+  try{
+    firebase.initializeApp(REMOTE_SYNC_CONFIG.firebaseConfig);
+    remoteSyncEnabled = true;
+  }catch(err){
+    remoteSyncEnabled = false;
+    console.warn('Remote sync initialization failed', err);
+  }
+}
+async function getRemoteSnapshot(){
+  if(!remoteSyncEnabled) return null;
+  try{
+    const snap = await firebase.database().ref(REMOTE_SYNC_CONFIG.rootPath).once('value');
+    return snap.exists() ? snap.val() : null;
+  }catch(err){
+    console.warn('Remote fetch failed', err);
+    throw err;
+  }
+}
+async function pushRemoteDB(){
+  if(!remoteSyncEnabled) return;
+  try{
+    const payload = { db: DB, updatedAt: Date.now() };
+    await firebase.database().ref(REMOTE_SYNC_CONFIG.rootPath).set(payload);
+    toast('Remote sync completed.');
+  }catch(err){
+    console.warn('Remote sync failed', err);
+    toast('Remote sync failed. Check your Firebase settings.', true);
+  }
+}
+async function syncWithRemote(){
+  if(!remoteSyncEnabled) return;
+  try{
+    const remote = await getRemoteSnapshot();
+    if(!remote || !remote.db){
+      await pushRemoteDB();
+      return;
+    }
+    const remoteTime = remote.updatedAt || 0;
+    const localTime = DB.meta.updatedAt || 0;
+    if(remoteTime > localTime){
+      DB = mergeDBs(DB, remote.db);
+      DB.meta.updatedAt = remoteTime;
+      saveDB();
+      toast('Remote data merged from cloud.');
+    } else if(remoteTime < localTime){
+      await pushRemoteDB();
+    } else {
+      await pushRemoteDB();
+    }
+  }catch(err){
+    toast('Could not connect to remote sync.', true);
+  }
+}
+function ensureRemoteSync(){
+  if(remoteSyncEnabled) return;
+  if(REMOTE_SYNC_CONFIG.enabled){
+    initializeRemoteSync();
+  }
+}
+
+async function manualCloudSync(){
+  if(!REMOTE_SYNC_CONFIG.enabled){
+    toast('Remote sync is disabled in the app configuration.', true);
+    return;
+  }
+  ensureRemoteSync();
+  if(!remoteSyncEnabled){
+    toast('Remote sync not initialized. Check Firebase settings.', true);
+    return;
+  }
+  await syncWithRemote();
+}
+
 function loadDB(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -567,9 +689,11 @@ function loadDB(){
 let saveTimer=null;
 function saveDB(){
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>{
+  saveTimer=setTimeout(() => {
+    touchDB();
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
     catch(e){ toast('Could not save — browser storage may be full.', true); }
+    if(remoteSyncEnabled){ pushRemoteDB(); }
   }, 150);
 }
 
@@ -1829,6 +1953,10 @@ document.getElementById('btnRestoreTrigger').addEventListener('click', ()=>{
   document.getElementById('restoreFile').click();
   settingsPop.classList.remove('show');
 });
+document.getElementById('btnSyncCloud').addEventListener('click', async ()=>{
+  settingsPop.classList.remove('show');
+  await manualCloudSync();
+});
 document.getElementById('restoreFile').addEventListener('change', function(){
   const file=this.files[0]; if(!file) return;
   const reader=new FileReader();
@@ -1855,8 +1983,12 @@ document.getElementById('btnResetAll').addEventListener('click', ()=>{
 });
 
 /* ============================ INIT ============================ */
-function init(){
+async function init(){
+  initializeRemoteSync();
   loadDB();
+  if(remoteSyncEnabled){
+    await syncWithRemote();
+  }
   document.getElementById('loadingOverlay').style.display='none';
   document.getElementById('app').style.display='block';
   renderDashboard();
