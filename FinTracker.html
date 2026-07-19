@@ -1,0 +1,1869 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FinTracker — Shree Traders | Ledger &amp; Business Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#1b2120;
+  --bg-soft:#212826;
+  --bg-panel:#262e2c;
+  --bg-card:#2b3331;
+  --bg-elevated:#313a38;
+  --line:rgba(236,231,218,0.10);
+  --line-strong:rgba(236,231,218,0.20);
+  --ink:#ece7da;
+  --ink-dim:#a9a496;
+  --ink-faint:#736e62;
+  --steel:#6e9bb0;
+  --steel-dim:#4b6e7d;
+  --rust:#c1652f;
+  --rust-bright:#e07c3f;
+  --cement:#8a8579;
+  --good:#73a86e;
+  --bad:#cf5b44;
+  --radius:10px;
+  --shadow:0 18px 50px -10px rgba(0,0,0,0.55);
+  font-size:16px;
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  background-image:
+    radial-gradient(circle at 15% 0%, rgba(110,155,176,0.06), transparent 45%),
+    radial-gradient(circle at 100% 100%, rgba(193,101,47,0.05), transparent 40%);
+  color:var(--ink);
+  font-family:'Inter',sans-serif;
+  min-height:100vh;
+}
+h1,h2,h3,.display{font-family:'Oswald',sans-serif; letter-spacing:0.02em; text-transform:uppercase; font-weight:600;}
+.mono{font-family:'IBM Plex Mono',monospace;}
+a{color:var(--steel);}
+button{font-family:inherit;}
+:focus-visible{outline:2px solid var(--steel-bright,#8fc1d6); outline-offset:2px;}
+::-webkit-scrollbar{height:10px;width:10px;}
+::-webkit-scrollbar-thumb{background:var(--bg-elevated); border-radius:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+
+/* ===== Loading ===== */
+#loadingOverlay{
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  flex-direction:column; gap:14px; background:var(--bg); z-index:9999;
+}
+.loader-mark{
+  width:46px;height:46px;border:3px solid var(--line-strong); border-top-color:var(--rust-bright);
+  border-radius:50%; animation:spin 0.9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+#loadingOverlay p{color:var(--ink-dim); font-size:13px; letter-spacing:0.08em; text-transform:uppercase;}
+
+/* ===== Topbar ===== */
+#app{display:none;}
+header.topbar{
+  position:sticky; top:0; z-index:200;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 26px; background:rgba(27,33,32,0.92); backdrop-filter:blur(8px);
+  border-bottom:1px solid var(--line);
+}
+.brand{display:flex; align-items:center; gap:11px; cursor:pointer;}
+.brand-mark{
+  width:34px;height:34px; border-radius:7px; background:linear-gradient(155deg, var(--rust) 0%, var(--rust-bright) 100%);
+  display:flex; align-items:center; justify-content:center; color:#1b2120; font-family:'Oswald'; font-weight:700; font-size:16px;
+  box-shadow:0 4px 10px rgba(193,101,47,0.35);
+}
+.brand-text h1{font-size:18px; margin:0; line-height:1;}
+.brand-text h1 .biz-name{font-family:'Inter',sans-serif; text-transform:none; letter-spacing:0; font-weight:500; color:var(--rust-bright); font-size:14px;}
+.brand-text span{font-size:10.5px; color:var(--ink-faint); letter-spacing:0.14em;}
+nav.toplinks{display:flex; gap:6px; align-items:center;}
+.navbtn{
+  background:none; border:1px solid transparent; color:var(--ink-dim); padding:8px 14px; border-radius:7px;
+  font-size:13px; letter-spacing:0.04em; cursor:pointer; text-transform:uppercase; font-family:'Oswald'; font-weight:500;
+  transition:all .15s;
+}
+.navbtn:hover{color:var(--ink); border-color:var(--line);}
+.navbtn.active{background:var(--bg-elevated); color:var(--rust-bright); border-color:var(--line-strong);}
+.icon-btn{
+  width:36px;height:36px; border-radius:8px; border:1px solid var(--line); background:var(--bg-panel);
+  color:var(--ink-dim); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all .15s;
+}
+.icon-btn:hover{color:var(--ink); border-color:var(--line-strong);}
+
+main{max-width:1180px; margin:0 auto; padding:30px 26px 80px;}
+.view{display:none;}
+.view.active{display:block; animation:fadein .25s ease;}
+@keyframes fadein{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+/* ===== Dashboard ===== */
+.hero{
+  display:flex; justify-content:space-between; align-items:flex-end; gap:30px; margin-bottom:26px; flex-wrap:wrap;
+}
+.hero h2{font-size:30px; margin:0 0 6px;}
+.hero p{color:var(--ink-dim); margin:0; max-width:520px; font-size:14px; line-height:1.5;}
+.search-wrap{position:relative; width:340px;}
+.search-wrap input{
+  width:100%; padding:11px 14px 11px 38px; border-radius:9px; border:1px solid var(--line-strong);
+  background:var(--bg-panel); color:var(--ink); font-size:14px;
+}
+.search-wrap input:focus{border-color:var(--steel);}
+.search-wrap svg{position:absolute; left:13px; top:12px; opacity:0.5;}
+.search-results{
+  position:absolute; top:calc(100% + 6px); left:0; right:0; background:var(--bg-elevated);
+  border:1px solid var(--line-strong); border-radius:9px; box-shadow:var(--shadow); z-index:50;
+  max-height:340px; overflow:auto; display:none;
+}
+.search-results.show{display:block;}
+.search-row{display:flex; align-items:center; justify-content:space-between; padding:10px 14px; cursor:pointer; border-bottom:1px solid var(--line);}
+.search-row:last-child{border-bottom:none;}
+.search-row:hover{background:var(--bg-card);}
+.search-row .nm{font-size:13.5px;}
+.search-row .ph{font-size:11.5px; color:var(--ink-faint);}
+.search-empty{padding:16px; font-size:13px; color:var(--ink-faint); text-align:center;}
+
+.stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:28px;}
+.stat-card{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px;
+}
+.stat-card .lbl{font-size:10.5px; letter-spacing:0.1em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:8px;}
+.stat-card .val{font-family:'IBM Plex Mono'; font-size:21px; font-weight:600;}
+.stat-card .val.good{color:var(--good);}
+.stat-card .val.bad{color:var(--bad);}
+
+.action-row{display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:32px;}
+.action-card{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius);
+  padding:22px; display:flex; align-items:center; gap:16px; cursor:pointer; transition:all .15s; text-align:left;
+}
+.action-card:hover{border-color:var(--line-strong); background:var(--bg-card); transform:translateY(-1px);}
+.action-card .ic{
+  width:50px;height:50px; border-radius:10px; display:flex; align-items:center; justify-content:center; flex:none;
+}
+.action-card.customer .ic{background:rgba(110,155,176,0.16); color:var(--steel);}
+.action-card.supplier .ic{background:rgba(193,101,47,0.16); color:var(--rust-bright);}
+.action-card h3{margin:0 0 4px; font-size:15px;}
+.action-card p{margin:0; font-size:12.5px; color:var(--ink-faint);}
+
+.section-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+.section-head h3{font-size:14px; margin:0; color:var(--ink-dim); letter-spacing:0.08em;}
+.tab-switch{display:flex; gap:4px; background:var(--bg-panel); border:1px solid var(--line); border-radius:8px; padding:3px;}
+.tab-switch button{background:none; border:none; color:var(--ink-faint); padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-family:'Oswald'; letter-spacing:.04em;}
+.tab-switch button.active{background:var(--bg-elevated); color:var(--ink);}
+
+.party-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:30px;}
+.party-card{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:14px 16px;
+  cursor:pointer; transition:all .15s; position:relative;
+}
+.party-card:hover{border-color:var(--line-strong); background:var(--bg-card);}
+.party-card .nm{font-size:14px; font-weight:600; margin-bottom:3px;}
+.party-card .ph{font-size:11.5px; color:var(--ink-faint); margin-bottom:10px;}
+.balance-chip{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-family:'IBM Plex Mono'; padding:3px 8px; border-radius:5px;}
+.balance-chip.due{background:rgba(207,91,68,0.15); color:var(--bad);}
+.balance-chip.adv{background:rgba(115,168,110,0.15); color:var(--good);}
+.balance-chip.zero{background:var(--bg-elevated); color:var(--ink-faint);}
+.empty-note{padding:30px 10px; text-align:center; color:var(--ink-faint); font-size:13px; border:1px dashed var(--line-strong); border-radius:var(--radius);}
+
+/* ===== Ledger view ===== */
+.ledger-header{
+  background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:22px 24px; margin-bottom:20px;
+  display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap;
+}
+.ledger-id .tag{font-size:10.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-faint); margin-bottom:6px;}
+.ledger-id h2{margin:0 0 10px; font-size:24px;}
+.chip-row{display:flex; gap:10px; flex-wrap:wrap;}
+.info-chip{font-size:12px; color:var(--ink-dim); background:var(--bg-elevated); padding:5px 10px; border-radius:6px; border:1px solid var(--line);}
+.ledger-balance{text-align:right; display:flex; flex-direction:column; align-items:flex-end; gap:8px;}
+.stamp{
+  border:2px dashed; border-radius:7px; padding:6px 16px; transform:rotate(-3deg); font-family:'Oswald';
+  font-weight:700; letter-spacing:.12em; font-size:13px; text-transform:uppercase;
+}
+.stamp.due{border-color:var(--bad); color:var(--bad);}
+.stamp.adv{border-color:var(--good); color:var(--good);}
+.stamp.zero{border-color:var(--ink-faint); color:var(--ink-faint);}
+.ledger-balance .amt{font-family:'IBM Plex Mono'; font-size:26px; font-weight:600;}
+.btnrow{display:flex; gap:8px; flex-wrap:wrap; margin-top:6px;}
+
+.btn{
+  border:1px solid var(--line-strong); background:var(--bg-elevated); color:var(--ink); padding:9px 15px;
+  border-radius:7px; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px;
+  font-family:'Oswald'; letter-spacing:.03em; text-transform:uppercase; font-weight:500; transition:all .15s;
+}
+.btn:hover{border-color:var(--steel); color:var(--steel);}
+.btn.primary{background:var(--rust); border-color:var(--rust); color:#1b1916;}
+.btn.primary:hover{background:var(--rust-bright); border-color:var(--rust-bright); color:#1b1916;}
+.btn.ghost{background:transparent;}
+.btn.small{padding:6px 11px; font-size:11px;}
+.btn.danger:hover{border-color:var(--bad); color:var(--bad);}
+
+.table-wrap{background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); overflow:auto; margin-bottom:30px;}
+table.ledger-table{width:100%; border-collapse:collapse; min-width:760px;}
+table.ledger-table th{
+  text-align:left; font-size:10.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-faint);
+  padding:12px 14px; border-bottom:1px solid var(--line-strong); white-space:nowrap; background:var(--bg-soft);
+  position:sticky; top:0;
+}
+table.ledger-table td{padding:11px 14px; border-bottom:1px solid var(--line); font-size:13px; vertical-align:top;}
+table.ledger-table tr:last-child td{border-bottom:none;}
+table.ledger-table tr:hover{background:var(--bg-card);}
+.amt-pos{color:var(--ink);}
+.amt-neg{color:var(--good);}
+td.num,th.num{font-family:'IBM Plex Mono'; text-align:right;}
+.comment-cell{max-width:180px; cursor:text;}
+.comment-cell textarea{
+  width:100%; min-height:34px; background:var(--bg-elevated); border:1px solid var(--line-strong); border-radius:5px;
+  color:var(--ink); font-size:12.5px; padding:5px 7px; font-family:inherit; resize:vertical;
+}
+.comment-text{font-size:12.5px; color:var(--ink-dim); font-style:italic;}
+.row-actions{display:flex; gap:5px;}
+.row-actions button{
+  background:none; border:none; color:var(--ink-faint); cursor:pointer; padding:3px; border-radius:4px;
+}
+.row-actions button:hover{color:var(--ink);}
+.type-pill{font-size:11px; padding:3px 8px; border-radius:5px; background:var(--bg-elevated); white-space:nowrap;}
+
+/* ===== Analysis ===== */
+.analysis-controls{display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:14px;}
+.summary-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:22px;}
+.chart-card{background:var(--bg-panel); border:1px solid var(--line); border-radius:var(--radius); padding:20px; margin-bottom:24px;}
+.chart-card h3{font-size:13px; color:var(--ink-dim); margin:0 0 16px;}
+.period-table{width:100%; border-collapse:collapse;}
+.period-table th{text-align:right; font-size:10.5px; text-transform:uppercase; color:var(--ink-faint); padding:8px 10px; border-bottom:1px solid var(--line-strong);}
+.period-table th:first-child,.period-table td:first-child{text-align:left;}
+.period-table td{text-align:right; padding:8px 10px; font-family:'IBM Plex Mono'; font-size:12.5px; border-bottom:1px solid var(--line);}
+
+/* ===== Modal ===== */
+.overlay{
+  position:fixed; inset:0; background:rgba(10,12,11,0.65); backdrop-filter:blur(2px);
+  display:none; align-items:center; justify-content:center; z-index:1000; padding:20px;
+}
+.overlay.show{display:flex;}
+.window{
+  width:100%; max-width:620px; max-height:88vh; background:var(--bg-panel); border:1px solid var(--line-strong);
+  border-radius:12px; box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden;
+  animation:popin .18s ease;
+}
+.window.wide{max-width:760px;}
+@keyframes popin{from{opacity:0; transform:scale(0.97) translateY(6px);} to{opacity:1; transform:scale(1) translateY(0);}}
+.window-bar{
+  display:flex; align-items:center; justify-content:space-between; padding:13px 18px; background:var(--bg-elevated);
+  border-bottom:1px solid var(--line-strong);
+}
+.window-bar .dots{display:flex; gap:6px;}
+.window-bar .dots span{width:9px;height:9px;border-radius:50%; background:var(--ink-faint); opacity:.5;}
+.window-title{font-family:'Oswald'; font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--ink-dim);}
+.window-close{background:none; border:none; color:var(--ink-faint); cursor:pointer; font-size:18px; line-height:1; padding:2px 6px; border-radius:4px;}
+.window-close:hover{color:var(--bad);}
+.window-body{padding:22px 24px; overflow:auto;}
+.window-foot{padding:14px 24px; border-top:1px solid var(--line); display:flex; justify-content:flex-end; gap:10px; background:var(--bg-soft);}
+
+.field{margin-bottom:15px;}
+.field label{display:block; font-size:11.5px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-faint); margin-bottom:6px;}
+.field input,.field select,.field textarea{
+  width:100%; padding:10px 12px; border-radius:7px; border:1px solid var(--line-strong); background:var(--bg-elevated);
+  color:var(--ink); font-size:13.5px; font-family:inherit;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--steel);}
+.field-row{display:grid; grid-template-columns:1fr 1fr; gap:12px;}
+.field-row3{display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px;}
+.hint{font-size:11px; color:var(--ink-faint); margin-top:5px;}
+.divider{height:1px; background:var(--line); margin:18px 0;}
+.subhead{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--ink-faint); margin:0 0 10px; display:flex; justify-content:space-between; align-items:center;}
+.linklike{background:none; border:none; color:var(--steel); font-size:11.5px; cursor:pointer; text-decoration:underline;}
+.addfield-box{background:var(--bg-card); border:1px solid var(--line-strong); border-radius:8px; padding:12px; margin-bottom:14px; display:none;}
+.addfield-box.show{display:block;}
+.custom-type-box{background:var(--bg-card); border:1px solid var(--line-strong); border-radius:8px; padding:12px; margin-bottom:14px; display:none;}
+.custom-type-box.show{display:block;}
+.radio-row{display:flex; gap:18px; margin:8px 0;}
+.radio-row label{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink); text-transform:none;}
+
+/* ===== Confirm overlay & toast ===== */
+.confirm-box{max-width:380px;}
+.confirm-box .window-body{font-size:13.5px; color:var(--ink-dim); line-height:1.55;}
+#toastHost{position:fixed; bottom:22px; right:22px; z-index:2000; display:flex; flex-direction:column; gap:8px;}
+.toast{background:var(--bg-elevated); border:1px solid var(--line-strong); color:var(--ink); padding:11px 16px; border-radius:8px; font-size:13px; box-shadow:var(--shadow); animation:popin .18s ease;}
+.toast.err{border-color:var(--bad); color:var(--bad);}
+
+/* settings popover */
+.settings-pop{position:absolute; top:54px; right:26px; background:var(--bg-elevated); border:1px solid var(--line-strong); border-radius:9px; box-shadow:var(--shadow); width:220px; display:none; z-index:300; overflow:hidden;}
+.settings-pop.show{display:block;}
+.settings-pop button{display:block; width:100%; text-align:left; background:none; border:none; color:var(--ink-dim); padding:11px 15px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line);}
+.settings-pop button:last-child{border-bottom:none;}
+.settings-pop button:hover{background:var(--bg-card); color:var(--ink);}
+
+/* Highlighted report button style */
+.report-btn{ display:flex; align-items:center; justify-content:center; gap:12px; padding:12px; font-size:15px; font-weight:700; border-radius:10px; }
+.report-btn{ background: linear-gradient(90deg, var(--rust-bright), var(--rust)); color:#1b1916; border:1px solid rgba(0,0,0,0.08); box-shadow:0 8px 22px rgba(193,101,47,0.12); }
+.report-btn:hover{ filter:brightness(1.03); box-shadow:0 10px 26px rgba(193,101,47,0.16); }
+.report-btn .report-ic{ width:38px; height:38px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; background:#fff; color:var(--rust); font-size:18px; box-shadow:0 6px 14px rgba(0,0,0,0.12); }
+
+footer.appfoot{text-align:center; padding:30px 0 10px; color:var(--ink-faint); font-size:11.5px;}
+
+@media(max-width:860px){
+  .stat-row{grid-template-columns:repeat(2,1fr);}
+  .action-row{grid-template-columns:1fr;}
+  .party-grid{grid-template-columns:1fr 1fr;}
+  .summary-grid{grid-template-columns:1fr 1fr;}
+  .search-wrap{width:100%;}
+  .hero{flex-direction:column; align-items:flex-start;}
+  nav.toplinks .navbtn span.full{display:none;}
+}
+@media(max-width:560px){
+  .party-grid{grid-template-columns:1fr;}
+  .field-row,.field-row3{grid-template-columns:1fr;}
+  main{padding:20px 14px 60px;}
+  header.topbar{padding:12px 14px;}
+}
+</style>
+</head>
+<body>
+
+<div id="loadingOverlay"><div class="loader-mark"></div><p>Opening the ledger…</p></div>
+
+<div id="app">
+  <header class="topbar">
+    <div class="brand" id="brandHome">
+      <div class="brand-mark">FT</div>
+      <div class="brand-text">
+        <h1>FinTracker <span class="biz-name">— Shree Traders</span></h1>
+        <span>STEEL &amp; CEMENT LEDGER</span>
+      </div>
+    </div>
+    <nav class="toplinks">
+      <button class="navbtn" data-nav="dashboard">Dashboard</button>
+      <button class="navbtn" data-nav="analysis">Business Overview</button>
+      <button class="icon-btn" id="settingsBtn" title="Settings">⚙</button>
+    </nav>
+    <div class="settings-pop" id="settingsPop">
+      <button id="btnBackup">⬇ Backup data (.json)</button>
+      <button id="btnRestoreTrigger">⬆ Restore from backup</button>
+      <button id="btnResetAll">⨯ Reset all data</button>
+    </div>
+    <input type="file" id="restoreFile" accept=".json" style="display:none;">
+  </header>
+
+  <main>
+    <!-- DASHBOARD -->
+    <section class="view active" id="view-dashboard">
+      <div class="hero">
+        <div>
+          <h2>Today's Ledger</h2>
+          <p>Track supplier purchases and customer sales on credit — one running balance per party, just like your paper khata.</p>
+        </div>
+        <div class="search-wrap">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="searchInput" placeholder="Search by name or phone…" autocomplete="off">
+          <div class="search-results" id="searchResults"></div>
+        </div>
+      </div>
+
+      <div class="stat-row" id="statRow"></div>
+
+      <div class="action-row">
+        <button class="action-card customer" id="addCustomerBtn">
+          <div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
+          <div><h3>Add Customer</h3><p>New buyer ledger — sales &amp; payments received</p></div>
+        </button>
+        <button class="action-card supplier" id="addSupplierBtn">
+          <div class="ic"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
+          <div><h3>Add Supplier</h3><p>New vendor ledger — purchases &amp; payments out</p></div>
+        </button>
+      </div>
+
+      <div class="section-head">
+        <h3>Parties</h3>
+        <div class="tab-switch" id="partyTabSwitch">
+          <button class="active" data-ptype="customer">Customers</button>
+          <button data-ptype="supplier">Suppliers</button>
+        </div>
+      </div>
+      <div class="party-grid" id="partyGrid"></div>
+    </section>
+
+    <!-- LEDGER -->
+    <section class="view" id="view-ledger">
+      <button class="btn ghost small" id="backToDash" style="margin-bottom:16px;">← Back to dashboard</button>
+      <div class="ledger-header" id="ledgerHeader"></div>
+      <div class="btnrow" id="ledgerActions" style="margin-bottom:16px;"></div>
+      <div id="supplierInsights" style="display:none; margin-bottom:20px; padding:16px; background:var(--bg-alt); border-radius:8px;">
+        <h3 id="insightTitle" style="margin-top:0; margin-bottom:12px;">📊 Purchase Insights</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+          <div>
+            <label style="display:block; font-size:0.85rem; color:var(--ink-faint); margin-bottom:4px;">Group By</label>
+            <select id="insightGranularity" style="width:100%; padding:6px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--ink);">
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly" selected>Monthly</option>
+              <option value="yearly">Yearly</option>
+              <option value="custom">Custom Date Range</option>
+            </select>
+          </div>
+          <div id="customDateRange" style="display:none;">
+            <label style="display:block; font-size:0.85rem; color:var(--ink-faint); margin-bottom:4px;">From - To</label>
+            <div style="display:flex; gap:8px;">
+              <input type="date" id="insightFromDate" style="flex:1; padding:6px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--ink);">
+              <input type="date" id="insightToDate" style="flex:1; padding:6px; border:1px solid var(--border); border-radius:4px; background:var(--bg); color:var(--ink);">
+            </div>
+          </div>
+        </div>
+        <button id="insightRefreshBtn" class="btn report-btn" style="width:100%;">
+          <span class="report-ic" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="3" y="13" width="3" height="6" fill="currentColor" />
+              <rect x="9" y="9" width="3" height="10" fill="currentColor" />
+              <rect x="15" y="5" width="3" height="14" fill="currentColor" />
+              <path d="M3 17L9 11L15 15L21 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            </svg>
+          </span>
+          <span>Generate Report</span>
+        </button>
+        <div id="insightResults" style="margin-top:12px; font-size:0.95rem;"></div>
+        <div id="paymentInsightsPanel" style="display:none; margin-top:20px; padding:16px; background:var(--bg-panel); border:1px solid var(--line); border-radius:10px;">
+          <div class="subhead">Payment Insights</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+            <div>
+              <label style="display:block; font-size:0.85rem; color:var(--ink-faint); margin-bottom:4px;">From</label>
+              <input type="date" id="paymentFromDate" style="width:100%; padding:8px; border:1px solid var(--line-strong); border-radius:7px; background:var(--bg); color:var(--ink);">
+            </div>
+            <div>
+              <label style="display:block; font-size:0.85rem; color:var(--ink-faint); margin-bottom:4px;">To</label>
+              <input type="date" id="paymentToDate" style="width:100%; padding:8px; border:1px solid var(--line-strong); border-radius:7px; background:var(--bg); color:var(--ink);">
+            </div>
+          </div>
+          <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px;">
+            <button id="paymentInsightsShowBtn" class="btn">Show Transactions</button>
+            <button id="paymentInsightsPdfBtn" class="btn">Download PDF</button>
+            <button id="paymentInsightsXlsBtn" class="btn">Download Excel</button>
+            <button id="paymentQtySummaryBtn" class="btn">Download Quantity Summary</button>
+          </div>
+          <div id="paymentInsightsResults" style="font-size:0.95rem;"></div>
+        </div>
+      </div>
+      <div class="table-wrap"><table class="ledger-table" id="ledgerTable"></table></div>
+    </section>
+
+    <!-- ANALYSIS -->
+    <section class="view" id="view-analysis">
+      <div class="hero">
+        <div><h2>Business Overview</h2><p>Sales, purchases and cash movement across every party — grouped by the period you choose.</p></div>
+      </div>
+      <div class="analysis-controls">
+        <div class="tab-switch" id="granSwitch">
+          <button data-gran="day">Day</button>
+          <button data-gran="month" class="active">Month</button>
+          <button data-gran="quarter">Quarter</button>
+          <button data-gran="year">Year</button>
+        </div>
+      </div>
+      <div class="summary-grid" id="summaryGrid"></div>
+      <div class="chart-card"><h3>Sales vs Purchases, with Gross Margin</h3><canvas id="mainChart" height="100"></canvas></div>
+      <div class="chart-card"><h3>Cash Collected vs Cash Paid Out</h3><canvas id="cashChart" height="90"></canvas></div>
+      <div class="chart-card">
+        <h3>Period Breakdown</h3>
+        <div class="table-wrap" style="margin:0;"><table class="period-table" id="periodTable"></table></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="appfoot">FinTracker — data stays in this browser only. Back it up regularly from Settings.</footer>
+</div>
+
+<!-- Generic floating window (party / transaction forms) -->
+<div class="overlay" id="modalOverlay">
+  <div class="window" id="modalWindow">
+    <div class="window-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="window-title" id="modalTitle">Window</div>
+      <button class="window-close" id="modalClose">✕</button>
+    </div>
+    <div class="window-body" id="modalBody"></div>
+    <div class="window-foot" id="modalFoot"></div>
+  </div>
+</div>
+
+<!-- Confirm overlay -->
+<div class="overlay" id="confirmOverlay">
+  <div class="window confirm-box">
+    <div class="window-bar">
+      <div class="dots"><span></span><span></span><span></span></div>
+      <div class="window-title">Please confirm</div>
+      <button class="window-close" id="confirmClose">✕</button>
+    </div>
+    <div class="window-body" id="confirmBody"></div>
+    <div class="window-foot">
+      <button class="btn ghost" id="confirmNo">Cancel</button>
+      <button class="btn danger" id="confirmYes">Yes, continue</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastHost"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============================ BUSINESS INFO ============================ */
+const BUSINESS_NAME = 'Shree Traders';
+
+
+
+/* ============================ DATA LAYER ============================ */
+const STORAGE_KEY = 'fintracker_db_v1';
+let DB = null;
+
+const DEFAULT_TYPES = {
+  customer:{
+    sale:{label:'Sale (Goods Out)', dir:1, needsItem:true, builtin:true},
+    payment:{label:'Payment Received', dir:-1, needsItem:false, builtin:true},
+    opening:{label:'Opening balance', dir:1, needsItem:false, builtin:true},
+    returnin:{label:'Return (Goods Back)', dir:-1, needsItem:true, builtin:true},
+    adjustment:{label:'Adjustment (+)', dir:1, needsItem:false, builtin:true}
+  },
+  supplier:{
+    purchase:{label:'Purchase (Goods In)', dir:1, needsItem:true, builtin:true},
+    opening:{label:'Opening balance', dir:1, needsItem:false, builtin:true},
+    paymentin:{label:'Payment In', dir:-1, needsItem:false, builtin:true},
+    paymentout:{label:'Payment Out', dir:-1, needsItem:false, builtin:true},
+    returnout:{label:'Return (Goods Back)', dir:-1, needsItem:true, builtin:true},
+    adjustment:{label:'Adjustment (+)', dir:1, needsItem:false, builtin:true}
+  }
+};
+
+function freshDB(){
+  return {
+    parties:{}, transactions:{},
+    fieldDefs:{
+      customer:{partyFields:[], txnFields:[], txnTypes:{}},
+      supplier:{partyFields:[], txnFields:[], txnTypes:{}}
+    }
+  };
+}
+function ensureShape(){
+  if(!DB || typeof DB!=='object') DB=freshDB();
+  if(!DB.parties) DB.parties={};
+  if(!DB.transactions) DB.transactions={};
+  if(!DB.fieldDefs) DB.fieldDefs={};
+  ['customer','supplier'].forEach(t=>{
+    if(!DB.fieldDefs[t]) DB.fieldDefs[t]={partyFields:[],txnFields:[],txnTypes:{}};
+    if(!DB.fieldDefs[t].partyFields) DB.fieldDefs[t].partyFields=[];
+    if(!DB.fieldDefs[t].txnFields) DB.fieldDefs[t].txnFields=[];
+    if(!DB.fieldDefs[t].txnTypes) DB.fieldDefs[t].txnTypes={};
+  });
+}
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    DB = raw ? JSON.parse(raw) : freshDB();
+  }catch(e){ DB = freshDB(); }
+  ensureShape();
+  normalizeDB();
+}
+let saveTimer=null;
+function saveDB(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>{
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+    catch(e){ toast('Could not save — browser storage may be full.', true); }
+  }, 150);
+}
+
+function getTypeDefs(ptype){
+  const out = Object.assign({}, DEFAULT_TYPES[ptype]);
+  const custom = DB.fieldDefs[ptype].txnTypes;
+  Object.keys(custom).forEach(k=>{ out[k]=custom[k]; });
+  return out;
+}
+function typeLabel(ptype, key){
+  const defs=getTypeDefs(ptype);
+  return defs[key] ? defs[key].label : key;
+}
+
+function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function inr(n){ n=Number(n)||0; return '₹' + n.toLocaleString('en-IN',{maximumFractionDigits:0}); }
+function inrPlain(n){ n=Number(n)||0; return 'Rs. ' + n.toLocaleString('en-IN',{maximumFractionDigits:0}); }
+function todayISO(){ const d=new Date(); const off=d.getTimezoneOffset(); return new Date(d.getTime()-off*60000).toISOString().slice(0,10); }
+function fmtDate(iso){
+  if(!iso) return '-';
+  const d=new Date(iso+'T00:00:00');
+  if(isNaN(d)) return iso;
+  return d.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+}
+
+// Normalize text inputs for consistent casing (e.g. "nagarjun" -> "Nagarjun")
+function normalizeText(s){
+  if(s==null) return '';
+  let t = String(s).trim().replace(/\s+/g,' ');
+  if(t.length===0) return '';
+  // title-case each word
+  return t.split(' ').map(w=> w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+}
+
+// Normalize existing DB entries (called after load)
+function normalizeDB(){
+  if(!DB) return;
+  Object.values(DB.parties).forEach(p=>{ if(p.name) p.name = normalizeText(p.name); });
+  Object.values(DB.transactions).forEach(t=>{ if(t.item) t.item = normalizeText(t.item); });
+}
+
+/* ---- Party CRUD ---- */
+function createParty(type, data){
+  const id=uid();
+  DB.parties[id]={id, type, name:normalizeText(data.name), phone:(data.phone||'').trim(), address:(data.address||'').trim(), site:(data.site||'').trim(), openingBalance:Number(data.openingBalance)||0, custom:data.custom||{}, createdAt:Date.now(), updatedAt:Date.now()};
+  saveDB();
+  
+  // Apply opening balance as initial transaction if provided
+  if(data.openingBalance && Number(data.openingBalance) !== 0){
+    const direction = type === 'customer' ? 1 : 1; // For both customer and supplier, positive opening balance means they owe us/we owe them
+    createTxn(id, {
+      date: todayISO(),
+      type: 'opening',
+      dir: direction,
+      needsItem: false,
+      item: '',
+      qty: null,
+      rate: null,
+      amount: Math.abs(Number(data.openingBalance)),
+      comment: 'Opening balance'
+    });
+  }
+  
+  return id;
+}
+function updateParty(id, data){
+  const p=DB.parties[id]; if(!p) return;
+  const prevBalance = p.openingBalance || 0;
+  const newBalance = Number(data.openingBalance) !== undefined ? Number(data.openingBalance) : prevBalance;
+
+  // Apply normalized name if provided
+  if(typeof data.name !== 'undefined') p.name = normalizeText(data.name);
+  // copy other fields
+  Object.keys(data).forEach(k=>{ if(k!=='name') p[k]=data[k]; });
+  p.openingBalance = newBalance;
+  p.updatedAt=Date.now(); 
+  saveDB();
+}
+function deleteParty(id){
+  delete DB.parties[id];
+  Object.keys(DB.transactions).forEach(tid=>{ if(DB.transactions[tid].partyId===id) delete DB.transactions[tid]; });
+  saveDB();
+}
+
+/* ---- Transaction CRUD ---- */
+function createTxn(partyId, data){
+  const id=uid();
+  DB.transactions[id]={
+    id, partyId, date:data.date, type:data.type, dir:data.dir, needsItem:!!data.needsItem,
+    item: data.item ? normalizeText(data.item) : '', qty:data.qty===''||data.qty==null?null:Number(data.qty), unit:data.unit||'',
+    rate:data.rate===''||data.rate==null?null:Number(data.rate),
+    amount:Math.abs(Number(data.amount)||0), comment:data.comment||'', custom:data.custom||{}, createdAt:Date.now()
+  };
+  saveDB();
+  return id;
+}
+function updateTxn(id, data){
+  const t=DB.transactions[id]; if(!t) return;
+  // Normalize item if provided
+  if(typeof data.item !== 'undefined') data.item = data.item ? normalizeText(data.item) : '';
+  Object.assign(t, data);
+  if('amount' in data) t.amount=Math.abs(Number(data.amount)||0);
+  saveDB();
+}
+function deleteTxn(id){ delete DB.transactions[id]; saveDB(); }
+
+function getPartyTxns(partyId){
+  return Object.values(DB.transactions).filter(t=>t.partyId===partyId)
+    .sort((a,b)=> a.date===b.date ? a.createdAt-b.createdAt : (a.date<b.date?-1:1));
+}
+function computeBalance(partyId){
+  return getPartyTxns(partyId).reduce((sum,t)=> sum + t.dir*t.amount, 0);
+}
+function withRunningBalance(partyId){
+  let bal=0;
+  return getPartyTxns(partyId).map(t=>{ bal += t.dir*t.amount; return Object.assign({}, t, {balance:bal}); });
+}
+
+/* ============================ UI HELPERS ============================ */
+function toast(msg, isErr){
+  const host=document.getElementById('toastHost');
+  const div=document.createElement('div');
+  div.className='toast'+(isErr?' err':'');
+  div.textContent=msg;
+  host.appendChild(div);
+  setTimeout(()=>{ div.style.opacity='0'; div.style.transition='opacity .3s'; setTimeout(()=>div.remove(),300); }, 2600);
+}
+function confirmDialog(message, onYes){
+  const ov=document.getElementById('confirmOverlay');
+  document.getElementById('confirmBody').textContent=message;
+  ov.classList.add('show');
+  function cleanup(){ ov.classList.remove('show'); yesBtn.removeEventListener('click',yesFn); noBtn.removeEventListener('click',noFn); }
+  const yesBtn=document.getElementById('confirmYes'), noBtn=document.getElementById('confirmNo'), xBtn=document.getElementById('confirmClose');
+  function yesFn(){ cleanup(); onYes(); }
+  function noFn(){ cleanup(); }
+  yesBtn.addEventListener('click',yesFn);
+  noBtn.addEventListener('click',noFn);
+  xBtn.onclick=noFn;
+}
+
+function openWindow(title, bodyHTML, footHTML, wide){
+  document.getElementById('modalTitle').textContent=title;
+  document.getElementById('modalBody').innerHTML=bodyHTML;
+  document.getElementById('modalFoot').innerHTML=footHTML||'';
+  document.getElementById('modalWindow').classList.toggle('wide', !!wide);
+  document.getElementById('modalOverlay').classList.add('show');
+}
+function closeWindow(){ document.getElementById('modalOverlay').classList.remove('show'); }
+document.getElementById('modalClose').onclick=closeWindow;
+document.getElementById('modalOverlay').addEventListener('click', e=>{ if(e.target.id==='modalOverlay') closeWindow(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeWindow(); document.getElementById('confirmOverlay').classList.remove('show'); } });
+
+/* ============================ ROUTER ============================ */
+let currentView='dashboard';
+let currentPartyId=null;
+let currentTab='customer';
+let currentGran='month';
+
+function showView(name){
+  currentView=name;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.nav===name));
+  window.scrollTo({top:0, behavior:'smooth'});
+  if(name==='dashboard') renderDashboard();
+  if(name==='analysis') renderAnalysis();
+}
+
+/* ============================ DASHBOARD ============================ */
+function renderStats(){
+  const customers=Object.values(DB.parties).filter(p=>p.type==='customer');
+  const suppliers=Object.values(DB.parties).filter(p=>p.type==='supplier');
+  const receivable=customers.reduce((s,p)=>{ const b=computeBalance(p.id); return s+(b>0?b:0); },0);
+  const payable=suppliers.reduce((s,p)=>{ const b=computeBalance(p.id); return s+(b>0?b:0); },0);
+  const ym=todayISO().slice(0,7);
+  let monthSales=0, monthPurchases=0;
+  Object.values(DB.transactions).forEach(t=>{
+    if(t.date && t.date.slice(0,7)===ym){
+      const party=DB.parties[t.partyId]; if(!party) return;
+      if(party.type==='customer' && t.dir>0) monthSales+=t.amount;
+      if(party.type==='supplier' && t.dir>0) monthPurchases+=t.amount;
+    }
+  });
+  const cards=[
+    {lbl:'Total Receivable', val:inr(receivable), cls:receivable>0?'bad':''},
+    {lbl:'Total Payable', val:inr(payable), cls:payable>0?'bad':''},
+    {lbl:'Sales This Month', val:inr(monthSales), cls:'good'},
+    {lbl:'Purchases This Month', val:inr(monthPurchases), cls:''}
+  ];
+  document.getElementById('statRow').innerHTML = cards.map(c=>
+    `<div class="stat-card"><div class="lbl">${c.lbl}</div><div class="val ${c.cls}">${c.val}</div></div>`
+  ).join('');
+}
+function balanceChipHTML(type, balance){
+  if(Math.abs(balance)<1) return `<span class="balance-chip zero">Settled</span>`;
+  if(balance>0) return `<span class="balance-chip due">${type==='customer'?'Due':'Payable'} ${inr(balance)}</span>`;
+  return `<span class="balance-chip adv">${type==='customer'?'Advance':'Owed to us'} ${inr(Math.abs(balance))}</span>`;
+}
+function renderPartyGrid(){
+  const list=Object.values(DB.parties).filter(p=>p.type===currentTab).sort((a,b)=>b.updatedAt-a.updatedAt);
+  const grid=document.getElementById('partyGrid');
+  if(list.length===0){
+    grid.innerHTML=`<div class="empty-note" style="grid-column:1/-1;">No ${currentTab}s yet. Click “Add ${currentTab==='customer'?'Customer':'Supplier'}” above to create the first ledger.</div>`;
+    return;
+  }
+  grid.innerHTML=list.map(p=>{
+    const bal=computeBalance(p.id);
+    return `<div class="party-card" data-id="${p.id}">
+      <div class="nm">${esc(p.name)}</div>
+      <div class="ph">${esc(p.phone)||'No phone on file'}</div>
+      ${balanceChipHTML(p.type, bal)}
+    </div>`;
+  }).join('');
+  grid.querySelectorAll('.party-card').forEach(card=>{
+    card.addEventListener('click',()=>openLedger(card.dataset.id));
+  });
+}
+function renderDashboard(){
+  renderStats();
+  renderPartyGrid();
+}
+document.getElementById('partyTabSwitch').addEventListener('click', e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  currentTab=btn.dataset.ptype;
+  document.querySelectorAll('#partyTabSwitch button').forEach(b=>b.classList.toggle('active', b===btn));
+  renderPartyGrid();
+});
+
+/* ---- search ---- */
+const searchInput=document.getElementById('searchInput');
+const searchResults=document.getElementById('searchResults');
+searchInput.addEventListener('input', ()=>{
+  const q=searchInput.value.trim().toLowerCase();
+  if(!q){ searchResults.classList.remove('show'); return; }
+  const matches=Object.values(DB.parties).filter(p=>
+    p.name.toLowerCase().includes(q) || (p.phone||'').toLowerCase().includes(q)
+  ).slice(0,10);
+  if(matches.length===0){
+    searchResults.innerHTML=`<div class="search-empty">No matching customer or supplier.</div>`;
+  }else{
+    searchResults.innerHTML=matches.map(p=>`
+      <div class="search-row" data-id="${p.id}">
+        <div><div class="nm">${esc(p.name)} <span style="color:var(--ink-faint); font-size:11px;">· ${p.type}</span></div><div class="ph">${esc(p.phone)||'—'}</div></div>
+        ${balanceChipHTML(p.type, computeBalance(p.id))}
+      </div>`).join('');
+  }
+  searchResults.classList.add('show');
+  searchResults.querySelectorAll('.search-row').forEach(row=>{
+    row.addEventListener('click',()=>{ openLedger(row.dataset.id); searchInput.value=''; searchResults.classList.remove('show'); });
+  });
+});
+document.addEventListener('click', e=>{
+  if(!e.target.closest('.search-wrap')) searchResults.classList.remove('show');
+});
+
+/* ============================ PARTY FORM ============================ */
+function partyFieldsHTML(ptype, existing){
+  const defs=DB.fieldDefs[ptype].partyFields;
+  return defs.map(f=>`
+    <div class="field" data-customfield="${f.key}">
+      <label>${esc(f.label)}</label>
+      <input type="text" data-pf="${f.key}" value="${esc(existing&&existing.custom?existing.custom[f.key]||'':'')}">
+    </div>`).join('');
+}
+function openPartyForm(ptype, existingId){
+  const existing = existingId ? DB.parties[existingId] : null;
+  const title = (existing?'Edit ':'New ') + (ptype==='customer'?'Customer':'Supplier');
+  const body = `
+    <div class="field"><label>Name *</label><input type="text" id="pf_name" value="${esc(existing?existing.name:'')}" placeholder="${ptype==='customer'?'e.g. Ganesh Hardware':'e.g. Naagarjuna Cement Co.'}"></div>
+    <div class="field-row">
+      <div class="field"><label>Phone</label><input type="text" id="pf_phone" value="${esc(existing?existing.phone:'')}" placeholder="10-digit mobile"></div>
+      <div class="field"><label>Site / Reference</label><input type="text" id="pf_site" value="${esc(existing?existing.site:'')}" placeholder="Site name or code"></div>
+    </div>
+    <div class="field"><label>Opening Balance (₹)</label><input type="number" id="pf_opening" value="${existing?existing.openingBalance||0:0}" placeholder="Previous balance due from/to this party"></div>
+    <div class="hint">Enter the amount they owe you (if customer) or you owe them (if supplier). This will be recorded as the starting balance.</div>
+    <div class="field"><label>Address</label><textarea id="pf_address" rows="2" placeholder="Delivery / billing address">${esc(existing?existing.address:'')}</textarea></div>
+    <div id="pfCustomWrap">${partyFieldsHTML(ptype, existing)}</div>
+    <button type="button" class="linklike" id="pfAddFieldBtn">+ Add another field (e.g. GST No., PAN, Credit Limit)</button>
+    <div class="addfield-box" id="pfAddFieldBox">
+      <div class="field" style="margin-bottom:8px;"><label>New field label</label><input type="text" id="pfNewFieldLabel" placeholder="e.g. GST Number"></div>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="btn small primary" id="pfAddFieldConfirm">Add field</button>
+        <button type="button" class="btn small ghost" id="pfAddFieldCancel">Cancel</button>
+      </div>
+    </div>
+  `;
+  const foot = `
+    ${existing?`<button class="btn danger ghost" id="pfDeleteBtn">Delete</button>`:''}
+    <button class="btn ghost" id="pfCancelBtn">Cancel</button>
+    <button class="btn primary" id="pfSaveBtn">Save</button>
+  `;
+  openWindow(title, body, foot);
+
+  document.getElementById('pfAddFieldBtn').onclick=()=>document.getElementById('pfAddFieldBox').classList.add('show');
+  document.getElementById('pfAddFieldCancel').onclick=()=>document.getElementById('pfAddFieldBox').classList.remove('show');
+  document.getElementById('pfAddFieldConfirm').onclick=()=>{
+    const label=document.getElementById('pfNewFieldLabel').value.trim();
+    if(!label) return;
+    const key='f_'+uid();
+    DB.fieldDefs[ptype].partyFields.push({key,label});
+    saveDB();
+    const wrap=document.getElementById('pfCustomWrap');
+    const div=document.createElement('div');
+    div.className='field'; div.dataset.customfield=key;
+    div.innerHTML=`<label>${esc(label)}</label><input type="text" data-pf="${key}" value="">`;
+    wrap.appendChild(div);
+    document.getElementById('pfAddFieldBox').classList.remove('show');
+    document.getElementById('pfNewFieldLabel').value='';
+  };
+  document.getElementById('pfCancelBtn').onclick=closeWindow;
+  if(existing){
+    document.getElementById('pfDeleteBtn').onclick=()=>{
+      confirmDialog(`Delete ${existing.name} and all their transactions? This cannot be undone.`, ()=>{
+        deleteParty(existing.id);
+        closeWindow();
+        toast('Deleted.');
+        showView('dashboard');
+      });
+    };
+  }
+  document.getElementById('pfSaveBtn').onclick=()=>{
+    const name=document.getElementById('pf_name').value.trim();
+    if(!name){ toast('Name is required.', true); return; }
+    const custom={};
+    document.querySelectorAll('#pfCustomWrap [data-pf]').forEach(inp=>{ custom[inp.dataset.pf]=inp.value; });
+    const data={
+      name, phone:document.getElementById('pf_phone').value.trim(),
+      address:document.getElementById('pf_address').value.trim(),
+      site:document.getElementById('pf_site').value.trim(), 
+      openingBalance:document.getElementById('pf_opening').value.trim(),
+      custom
+    };
+    if(existing){
+      updateParty(existing.id, data);
+      closeWindow(); toast('Saved.');
+      if(currentView==='ledger') openLedger(existing.id); else renderDashboard();
+    }else{
+      const id=createParty(ptype, data);
+      closeWindow(); toast(ptype==='customer'?'Customer added.':'Supplier added.');
+      openLedger(id);
+      setTimeout(()=>openTxnForm(id), 180);
+    }
+  };
+}
+document.getElementById('addCustomerBtn').addEventListener('click', ()=>openPartyForm('customer'));
+document.getElementById('addSupplierBtn').addEventListener('click', ()=>openPartyForm('supplier'));
+
+/* ============================ TRANSACTION FORM ============================ */
+function txnTypeOptionsHTML(ptype, selected){
+  const defs=getTypeDefs(ptype);
+  let html='';
+  Object.keys(defs).forEach(k=>{
+    html+=`<option value="${k}" ${k===selected?'selected':''}>${esc(defs[k].label)}</option>`;
+  });
+  html+=`<option value="__custom__">+ Add custom type…</option>`;
+  return html;
+}
+function txnFieldsHTML(ptype, existing){
+  const defs=DB.fieldDefs[ptype].txnFields;
+  return defs.map(f=>`
+    <div class="field"><label>${esc(f.label)}</label>
+      <input type="text" data-tf="${f.key}" value="${esc(existing&&existing.custom?existing.custom[f.key]||'':'')}"></div>`).join('');
+}
+function openTxnForm(partyId, existingTxnId){
+  const party=DB.parties[partyId];
+  if(!party) return;
+  const existing = existingTxnId ? DB.transactions[existingTxnId] : null;
+  const itemLabel = party.type==='customer' ? 'Item Name' : 'Brand Name';
+  const defaultType = existing ? existing.type : (party.type==='customer'?'sale':'purchase');
+  const defs = getTypeDefs(party.type);
+  const needsItemNow = existing ? existing.needsItem : (defs[defaultType] ? defs[defaultType].needsItem : true);
+
+  const body=`
+    <div class="field-row">
+      <div class="field"><label>Date *</label><input type="date" id="tf_date" value="${existing?existing.date:todayISO()}"></div>
+      <div class="field"><label>Transaction Type *</label>
+        <select id="tf_type">${txnTypeOptionsHTML(party.type, defaultType)}</select>
+      </div>
+    </div>
+
+    <div class="custom-type-box" id="tfCustomTypeBox">
+      <div class="field"><label>New type label</label><input type="text" id="tfNewTypeLabel" placeholder="e.g. Discount, Damage Claim"></div>
+      <div class="radio-row">
+        <label><input type="radio" name="tfNewDir" value="1" checked> Increases balance</label>
+        <label><input type="radio" name="tfNewDir" value="-1"> Decreases balance</label>
+      </div>
+      <label style="display:flex; align-items:center; gap:7px; font-size:12.5px; color:var(--ink); margin-bottom:10px;">
+        <input type="checkbox" id="tfNewNeedsItem" style="width:auto;"> Involves item &amp; quantity
+      </label>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="btn small primary" id="tfAddTypeConfirm">Add &amp; use this type</button>
+        <button type="button" class="btn small ghost" id="tfAddTypeCancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="tfItemFields" style="${needsItemNow?'':'display:none;'}">
+      <div class="field-row3">
+        <div class="field"><label>${itemLabel}</label><input type="text" id="tf_item" value="${existing?esc(existing.item):''}"></div>
+        <div class="field"><label>Quantity *</label><input type="number" step="any" id="tf_qty" value="${existing&&existing.qty!=null?existing.qty:''}" required></div>
+        <div class="field"><label>Unit *</label><select id="tf_unit" required><option value="">Select Unit</option><option value="Kg" ${existing&&existing.unit==='Kg'?'selected':''}>Kg</option><option value="Bags" ${existing&&existing.unit==='Bags'?'selected':''}>Bags</option><option value="Bag" ${existing&&existing.unit==='Bag'?'selected':''}>Bag</option><option value="custom" ${existing&&existing.unit==='custom'?'selected':''}>Custom</option></select></div>
+      </div>
+      <div class="field" id="tfCustomUnitField" style="display:none;"><label>Custom Unit</label><input type="text" id="tf_custom_unit" placeholder="e.g. Boxes, Crates, Liters" value="${existing&&existing.unit&&!['Kg','Bags','Bag'].includes(existing.unit)?existing.unit:''}"></div>
+      <div class="field"><label>Rate</label><input type="number" step="any" id="tf_rate" value="${existing&&existing.rate!=null?existing.rate:''}"></div>
+    </div>
+    <div class="field"><label>Amount (₹) *</label><input type="number" step="any" id="tf_amount" value="${existing?existing.amount:''}"></div>
+    <div class="field"><label>Comment / Note</label><textarea id="tf_comment" rows="2" placeholder="Optional note for this entry">${existing?esc(existing.comment):''}</textarea></div>
+
+    <div id="tfCustomWrap">${txnFieldsHTML(party.type, existing)}</div>
+    <button type="button" class="linklike" id="tfAddFieldBtn">+ Add another field (e.g. Invoice No., Vehicle No.)</button>
+    <div class="addfield-box" id="tfAddFieldBox">
+      <div class="field" style="margin-bottom:8px;"><label>New field label</label><input type="text" id="tfNewFieldLabel" placeholder="e.g. Vehicle No."></div>
+      <div style="display:flex; gap:8px;">
+        <button type="button" class="btn small primary" id="tfAddFieldConfirm">Add field</button>
+        <button type="button" class="btn small ghost" id="tfAddFieldCancel">Cancel</button>
+      </div>
+    </div>
+  `;
+  const foot=`
+    ${existing?`<button class="btn danger ghost" id="tfDeleteBtn">Delete</button>`:''}
+    <button class="btn ghost" id="tfCancelBtn">Cancel</button>
+    <button class="btn primary" id="tfSaveBtn">${existing?'Save changes':'Add entry'}</button>
+  `;
+  openWindow((existing?'Edit Entry — ':'New Entry — ')+party.name, body, foot, true);
+
+  // Handle unit dropdown
+  const unitSelect = document.getElementById('tf_unit');
+  const customUnitField = document.getElementById('tfCustomUnitField');
+  unitSelect.addEventListener('change', function() {
+    if(this.value === 'custom') {
+      customUnitField.style.display = '';
+    } else {
+      customUnitField.style.display = 'none';
+    }
+  });
+  // Show custom field on load if needed
+  if(unitSelect.value === 'custom') {
+    customUnitField.style.display = '';
+  }
+
+  function recalcAmount(){
+    const qty=parseFloat(document.getElementById('tf_qty').value);
+    const rate=parseFloat(document.getElementById('tf_rate').value);
+    if(updatingSync) return;
+    const amountEl = document.getElementById('tf_amount');
+    if(!isNaN(qty) && !isNaN(rate)){
+      try{ updatingSync = true; amountEl.value = (qty*rate).toFixed(2).replace(/\.00$/,''); }
+      finally{ setTimeout(()=>{ updatingSync = false; }, 0); }
+    }
+  }
+  const qtyEl=document.getElementById('tf_qty'), rateEl=document.getElementById('tf_rate');
+  // Guard to avoid mutual-update loops when programmatically changing fields
+  let updatingSync = false;
+  function recalcRate(){
+    if(updatingSync) return;
+    const qty=parseFloat(document.getElementById('tf_qty').value);
+    const amount=parseFloat(document.getElementById('tf_amount').value);
+    const rateElLocal=document.getElementById('tf_rate');
+    if(!isNaN(qty) && qty!==0 && !isNaN(amount)){
+      try{ updatingSync = true; rateElLocal.value = (amount/qty).toFixed(2).replace(/\.00$/,''); }
+      finally{ setTimeout(()=>{ updatingSync = false; }, 0); }
+    }
+  }
+  if(qtyEl){ qtyEl.addEventListener('input', ()=>{ recalcAmount(); recalcRate(); }); rateEl.addEventListener('input', recalcAmount); }
+  const amountEl=document.getElementById('tf_amount');
+  if(amountEl) amountEl.addEventListener('input', recalcRate);
+
+  const typeSelect=document.getElementById('tf_type');
+  typeSelect.addEventListener('change', ()=>{
+    if(typeSelect.value==='__custom__'){
+      document.getElementById('tfCustomTypeBox').classList.add('show');
+    }else{
+      document.getElementById('tfCustomTypeBox').classList.remove('show');
+      const d=getTypeDefs(party.type)[typeSelect.value];
+      document.getElementById('tfItemFields').style.display = d.needsItem ? '' : 'none';
+    }
+  });
+  document.getElementById('tfAddTypeCancel').onclick=()=>{
+    document.getElementById('tfCustomTypeBox').classList.remove('show');
+    typeSelect.value=defaultType;
+  };
+  document.getElementById('tfAddTypeConfirm').onclick=()=>{
+    const label=document.getElementById('tfNewTypeLabel').value.trim();
+    if(!label){ toast('Enter a label for the new type.', true); return; }
+    const dir=Number(document.querySelector('input[name="tfNewDir"]:checked').value);
+    const needsItem=document.getElementById('tfNewNeedsItem').checked;
+    const key='custom_'+uid();
+    DB.fieldDefs[party.type].txnTypes[key]={label, dir, needsItem, builtin:false};
+    saveDB();
+    const opt=document.createElement('option');
+    opt.value=key; opt.textContent=label;
+    typeSelect.insertBefore(opt, typeSelect.lastElementChild);
+    typeSelect.value=key;
+    document.getElementById('tfCustomTypeBox').classList.remove('show');
+    document.getElementById('tfItemFields').style.display = needsItem ? '' : 'none';
+    toast('Custom type added — it will appear for future entries too.');
+  };
+
+  document.getElementById('tfAddFieldBtn').onclick=()=>document.getElementById('tfAddFieldBox').classList.add('show');
+  document.getElementById('tfAddFieldCancel').onclick=()=>document.getElementById('tfAddFieldBox').classList.remove('show');
+  document.getElementById('tfAddFieldConfirm').onclick=()=>{
+    const label=document.getElementById('tfNewFieldLabel').value.trim();
+    if(!label) return;
+    const key='f_'+uid();
+    DB.fieldDefs[party.type].txnFields.push({key,label});
+    saveDB();
+    const wrap=document.getElementById('tfCustomWrap');
+    const div=document.createElement('div');
+    div.className='field';
+    div.innerHTML=`<label>${esc(label)}</label><input type="text" data-tf="${key}" value="">`;
+    wrap.appendChild(div);
+    document.getElementById('tfAddFieldBox').classList.remove('show');
+    document.getElementById('tfNewFieldLabel').value='';
+  };
+
+  document.getElementById('tfCancelBtn').onclick=closeWindow;
+  if(existing){
+    document.getElementById('tfDeleteBtn').onclick=()=>{
+      confirmDialog('Delete this entry? The running balance will be recalculated.', ()=>{
+        deleteTxn(existing.id);
+        closeWindow(); toast('Entry deleted.');
+        openLedger(partyId);
+      });
+    };
+  }
+  document.getElementById('tfSaveBtn').onclick=()=>{
+    const date=document.getElementById('tf_date').value;
+    if(!date){ toast('Date is required.', true); return; }
+    let type=typeSelect.value;
+    if(type==='__custom__'){ toast('Finish adding the custom type first.', true); return; }
+    const d=getTypeDefs(party.type)[type];
+    const amount=parseFloat(document.getElementById('tf_amount').value);
+    if(isNaN(amount) || amount<=0){ toast('Enter a valid amount.', true); return; }
+    let unit = '';
+    if(d.needsItem) {
+      const unitSelect = document.getElementById('tf_unit').value;
+      if(!unitSelect){ toast('Please select a unit.', true); return; }
+      unit = unitSelect === 'custom' ? document.getElementById('tf_custom_unit').value.trim() : unitSelect;
+      if(!unit){ toast('Please enter a custom unit or select from dropdown.', true); return; }
+    }
+    const custom={};
+    document.querySelectorAll('#tfCustomWrap [data-tf]').forEach(inp=>{ custom[inp.dataset.tf]=inp.value; });
+    const data={
+      date, type, dir:d.dir, needsItem:d.needsItem,
+      item: d.needsItem ? document.getElementById('tf_item').value.trim() : '',
+      qty: d.needsItem ? document.getElementById('tf_qty').value : null,
+      unit: unit,
+      rate: d.needsItem ? document.getElementById('tf_rate').value : null,
+      amount, comment:document.getElementById('tf_comment').value.trim(), custom
+    };
+    if(existing){ updateTxn(existing.id, data); toast('Entry updated.'); }
+    else{ createTxn(partyId, data); toast('Entry added.'); }
+    closeWindow();
+    openLedger(partyId);
+  };
+}
+
+/* ============================ LEDGER VIEW ============================ */
+function openLedger(partyId){
+  currentPartyId=partyId;
+  showViewRaw('ledger');
+  renderLedger(partyId);
+}
+function showViewRaw(name){
+  currentView=name;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+name).classList.add('active');
+  document.querySelectorAll('.navbtn').forEach(b=>b.classList.toggle('active', b.dataset.nav===name));
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+document.getElementById('backToDash').addEventListener('click', ()=>showView('dashboard'));
+
+function renderLedger(partyId){
+  const party=DB.parties[partyId];
+  if(!party){ showView('dashboard'); return; }
+  const balance=computeBalance(partyId);
+  const stampCls = Math.abs(balance)<1 ? 'zero' : (balance>0?'due':'adv');
+  const stampText = Math.abs(balance)<1 ? 'Settled' : (balance>0 ? (party.type==='customer'?'Receivable':'Payable') : (party.type==='customer'?'Advance Received':'Advance Paid'));
+
+  const chips=[];
+  if(party.phone) chips.push(`📞 ${esc(party.phone)}`);
+  if(party.site) chips.push(`📍 ${esc(party.site)}`);
+  if(party.address) chips.push(`🏠 ${esc(party.address)}`);
+  (DB.fieldDefs[party.type].partyFields||[]).forEach(f=>{
+    const v=party.custom&&party.custom[f.key];
+    if(v) chips.push(`${esc(f.label)}: ${esc(v)}`);
+  });
+
+  document.getElementById('ledgerHeader').innerHTML=`
+    <div class="ledger-id">
+      <div class="tag">${party.type==='customer'?'Customer Ledger':'Supplier Ledger'}</div>
+      <h2>${esc(party.name)}</h2>
+      <div class="chip-row">${chips.map(c=>`<span class="info-chip">${c}</span>`).join('') || '<span class="info-chip">No contact details on file</span>'}</div>
+    </div>
+    <div class="ledger-balance">
+      <div class="stamp ${stampCls}">${stampText}</div>
+      <div class="amt">${inr(Math.abs(balance))}</div>
+    </div>`;
+
+  document.getElementById('ledgerActions').innerHTML=`
+    <button class="btn primary" id="addTxnBtn">+ Add Entry</button>
+    <button class="btn" id="editPartyBtn">Edit Details</button>
+    <button class="btn" id="exportPdfBtn">⬇ Download PDF</button>
+    <button class="btn" id="exportXlsBtn">⬇ Download Excel</button>
+  `;
+  document.getElementById('addTxnBtn').onclick=()=>openTxnForm(partyId);
+  document.getElementById('editPartyBtn').onclick=()=>openPartyForm(party.type, partyId);
+  document.getElementById('exportPdfBtn').onclick=()=>exportPDF(partyId);
+  document.getElementById('exportXlsBtn').onclick=()=>exportExcel(partyId);
+
+  // Setup insights section (for suppliers and customers)
+  const insightsSection = document.getElementById('supplierInsights');
+  // Show for both party types and update title accordingly
+  insightsSection.style.display = '';
+  document.getElementById('insightTitle').textContent = party.type==='supplier' ? '📊 Purchase Insights' : '📊 Sales Insights';
+  // Use onchange/onclick to avoid adding multiple listeners on repeated renders
+  document.getElementById('insightGranularity').onchange = function(e){
+    const customRange = document.getElementById('customDateRange');
+    customRange.style.display = e.target.value==='custom' ? '' : 'none';
+  };
+  document.getElementById('insightRefreshBtn').onclick = function(){ updatePartyInsights(partyId); };
+  
+  const paymentPanel = document.getElementById('paymentInsightsPanel');
+  const paymentPdfBtn = document.getElementById('paymentInsightsPdfBtn');
+  const paymentXlsBtn = document.getElementById('paymentInsightsXlsBtn');
+  const paymentQtySummaryBtn = document.getElementById('paymentQtySummaryBtn');
+  if(party.type === 'supplier'){
+    paymentPanel.style.display = '';
+    document.getElementById('paymentInsightsShowBtn').onclick = function(){ renderPaymentInsights(partyId); };
+    paymentPdfBtn.onclick = function(){ exportPaymentInsightsPDF(partyId); };
+    paymentXlsBtn.onclick = function(){ exportPaymentInsightsExcel(partyId); };
+    paymentQtySummaryBtn.onclick = function(){ exportQuantitySummary(partyId); };
+  } else {
+    paymentPanel.style.display = 'none';
+  }
+  updatePartyInsights(partyId);
+
+  const rows=withRunningBalance(partyId);
+  const customFieldDefs = DB.fieldDefs[party.type].txnFields||[];
+  const itemLabel = party.type==='customer' ? 'Item' : 'Brand';
+  const table=document.getElementById('ledgerTable');
+
+  let thead = `<thead><tr>
+      <th>Date</th><th>Type</th><th>${itemLabel}</th><th class="num">Qty</th><th>Unit</th><th class="num">Rate</th>
+      <th class="num">Amount</th><th class="num">Balance</th>
+      ${customFieldDefs.map(f=>`<th>${esc(f.label)}</th>`).join('')}
+      <th>Comment</th><th></th>
+    </tr></thead>`;
+
+  let tbody;
+  if(rows.length===0){
+    tbody=`<tbody><tr><td colspan="${9+customFieldDefs.length}" style="text-align:center; color:var(--ink-faint); padding:30px;">No entries yet. Click “+ Add Entry” to record the first transaction.</td></tr></tbody>`;
+  }else{
+    tbody='<tbody>'+rows.map(r=>{
+      const signed = r.dir*r.amount;
+      return `<tr data-txn="${r.id}">
+        <td>${fmtDate(r.date)}</td>
+        <td><span class="type-pill">${esc(typeLabel(party.type, r.type))}</span></td>
+        <td>${esc(r.item)||'—'}</td>
+        <td class="num">${r.qty!=null && r.qty!==''?r.qty:'—'}</td>
+        <td>${esc(r.unit)||'—'}</td>
+        <td class="num">${r.rate!=null && r.rate!==''?inr(r.rate):'—'}</td>
+        <td class="num ${signed<0?'amt-neg':'amt-pos'}">${signed<0?'− ':'+ '}${inr(Math.abs(signed))}</td>
+        <td class="num">${inr(r.balance)}</td>
+        ${customFieldDefs.map(f=>`<td>${esc((r.custom&&r.custom[f.key])||'—')}</td>`).join('')}
+        <td class="comment-cell" data-commentfor="${r.id}">${r.comment ? `<span class="comment-text">${esc(r.comment)}</span>` : `<span class="comment-text" style="opacity:.5;">+ note</span>`}</td>
+        <td><div class="row-actions">
+          <button data-edit="${r.id}" title="Edit"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg></button>
+          <button data-share="${r.id}" title="Share on WhatsApp"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.6 6.4a7 7 0 1 1-9.9 9.9M12 2v8l4.4-4.4"/></svg></button>
+          <button data-image="${r.id}" title="Download as Image"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg></button>
+          <button data-del="${r.id}" title="Delete"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg></button>
+        </div></td>
+      </tr>`;
+    }).join('')+'</tbody>';
+  }
+  table.innerHTML=thead+tbody;
+
+  table.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>openTxnForm(partyId, b.dataset.edit)));
+  table.querySelectorAll('[data-share]').forEach(b=>b.addEventListener('click',()=>shareTransactionWhatsApp(partyId, b.dataset.share)));
+  table.querySelectorAll('[data-image]').forEach(b=>b.addEventListener('click',()=>downloadTransactionImage(partyId, b.dataset.image)));
+  table.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+    confirmDialog('Delete this entry?', ()=>{ deleteTxn(b.dataset.del); toast('Deleted.'); renderLedger(partyId); });
+  }));
+  table.querySelectorAll('.comment-cell').forEach(cell=>{
+    cell.addEventListener('click', function handler(){
+      if(cell.querySelector('textarea')) return;
+      const txnId=cell.dataset.commentfor;
+      const current=DB.transactions[txnId] ? DB.transactions[txnId].comment : '';
+      cell.innerHTML=`<textarea>${esc(current)}</textarea>`;
+      const ta=cell.querySelector('textarea');
+      ta.focus();
+      ta.addEventListener('blur', ()=>{
+        updateTxn(txnId, {comment:ta.value.trim()});
+        renderLedger(partyId);
+      });
+      ta.addEventListener('keydown', e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); ta.blur(); } });
+    });
+  });
+}
+
+/* ============================ PARTY INSIGHTS ============================ */
+function updatePartyInsights(partyId){
+  const party = DB.parties[partyId];
+  if(!party) return;
+  
+  const gran = document.getElementById('insightGranularity').value;
+  // Positive direction entries represent both sales (for customers) and purchases (for suppliers)
+  const rows = withRunningBalance(partyId).filter(r => r.dir > 0);
+  
+  let filtered = rows;
+  if(gran === 'custom'){
+    const from = document.getElementById('insightFromDate').value;
+    const to = document.getElementById('insightToDate').value;
+    if(from && to){
+      filtered = rows.filter(r => r.date >= from && r.date <= to);
+    }
+  }else{
+    const now = new Date();
+    const today = now.toISOString().split('T')[0];
+    filtered = rows.filter(r => {
+      const rDate = new Date(r.date);
+      if(gran === 'daily') return r.date === today;
+      if(gran === 'weekly'){
+        const d = new Date(today);
+        d.setDate(d.getDate() - d.getDay());
+        const weekStart = d.toISOString().split('T')[0];
+        d.setDate(d.getDate() + 7);
+        const weekEnd = d.toISOString().split('T')[0];
+        return r.date >= weekStart && r.date < weekEnd;
+      }
+      if(gran === 'monthly') return r.date.substring(0, 7) === today.substring(0, 7);
+      if(gran === 'yearly') return r.date.substring(0, 4) === today.substring(0, 4);
+      return true;
+    });
+  }
+  
+  let totalQty = 0, totalAmount = 0, totalItems = 0;
+  const byItem = {};
+  
+  filtered.forEach(r => {
+    if(r.qty) totalQty += parseFloat(r.qty);
+    totalAmount += r.dir * r.amount;
+    totalItems++;
+    if(r.item){
+      if(!byItem[r.item]) byItem[r.item] = { qty: 0, amount: 0 };
+      if(r.qty) byItem[r.item].qty += parseFloat(r.qty);
+      byItem[r.item].amount += r.dir * r.amount;
+    }
+  });
+  
+  // Title labels depend on party type
+  const totalLabel = party.type === 'supplier' ? 'Total Orders' : 'Total Sales';
+  const qtyLabel = party.type === 'supplier' ? 'Total Quantity' : 'Total Quantity Sold';
+  const amountLabel = party.type === 'supplier' ? 'Total Amount' : 'Total Sales Amount';
+  
+  let html = `<div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:12px;">
+    <div style="padding:10px; background:var(--bg); border-radius:4px; border-left:3px solid var(--good);">
+      <div style="font-size:0.8rem; color:var(--ink-faint);">${totalLabel}</div>
+      <div style="font-size:1.2rem; font-weight:600;">${totalItems}</div>
+    </div>
+    <div style="padding:10px; background:var(--bg); border-radius:4px; border-left:3px solid var(--accent);">
+      <div style="font-size:0.8rem; color:var(--ink-faint);">${qtyLabel}</div>
+      <div style="font-size:1.2rem; font-weight:600;">${totalQty.toFixed(2)} ${totalQty > 0 && filtered[0] && filtered[0].unit ? filtered[0].unit : 'units'}</div>
+    </div>
+    <div style="padding:10px; background:var(--bg); border-radius:4px; border-left:3px solid var(--rust);">
+      <div style="font-size:0.8rem; color:var(--ink-faint);">${amountLabel}</div>
+      <div style="font-size:1.2rem; font-weight:600;">${inr(totalAmount)}</div>
+    </div>
+  </div>`;
+  
+  if(Object.keys(byItem).length > 0){
+    html += `<div style="font-size:0.85rem; color:var(--ink-faint); margin-bottom:8px;"><strong>By Item:</strong></div>`;
+    html += `<div style="max-height:150px; overflow-y:auto;">`;
+    Object.entries(byItem).forEach(([item, data]) => {
+      html += `<div style="padding:6px 0; border-bottom:1px solid var(--border); font-size:0.9rem;">
+        <strong>${esc(item)}</strong> — ${data.qty.toFixed(2)} units, ${inr(data.amount)}
+      </div>`;
+    });
+    html += `</div>`;
+  }
+  
+  document.getElementById('insightResults').innerHTML = html;
+}
+
+function renderPaymentInsights(partyId){
+  const party = DB.parties[partyId];
+  if(!party || party.type !== 'supplier') return;
+  const from = document.getElementById('paymentFromDate').value;
+  const to = document.getElementById('paymentToDate').value;
+  if(!from || !to){ toast('Please select both From and To dates.', true); return; }
+  if(from > to){ toast('The From date must be before the To date.', true); return; }
+
+  const rows = withRunningBalance(partyId).filter(r => r.date >= from && r.date <= to);
+  if(rows.length === 0){
+    document.getElementById('paymentInsightsResults').innerHTML = '<div style="color:var(--ink-faint); padding:14px; border:1px solid var(--line); border-radius:8px;">No transactions found for the selected dates.</div>';
+    return;
+  }
+
+  let totalAmount = 0;
+  let totalQty = 0;
+  const rowsHtml = rows.map(r => {
+    const signed = r.dir * r.amount;
+    if(r.qty) totalQty += parseFloat(r.qty);
+    totalAmount += signed;
+    return `<div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; padding:10px 0; border-bottom:1px solid var(--line);">
+      <div>${fmtDate(r.date)}</div>
+      <div>${esc(typeLabel(party.type, r.type))}</div>
+      <div>${r.qty!=null ? r.qty : '-'} ${esc(r.unit||'')}</div>
+      <div>${inr(signed)}</div>
+    </div>`;
+  }).join('');
+
+  const headerHtml = `<div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; padding:10px; border-bottom:2px solid var(--line); font-weight:700; color:var(--ink-dim);">
+    <div>Date</div><div>Type</div><div>Qty</div><div>Amount</div>
+  </div>`;
+
+  document.getElementById('paymentInsightsResults').innerHTML = `
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+      <div style="padding:12px; background:var(--bg); border-radius:8px; border:1px solid var(--line);">
+        <div style="font-size:0.8rem; color:var(--ink-faint);">Total Transactions</div>
+        <div style="font-size:1.3rem; font-weight:700;">${rows.length}</div>
+      </div>
+      <div style="padding:12px; background:var(--bg); border-radius:8px; border:1px solid var(--line);">
+        <div style="font-size:0.8rem; color:var(--ink-faint);">Total Amount</div>
+        <div style="font-size:1.3rem; font-weight:700;">${inr(totalAmount)}</div>
+      </div>
+    </div>
+    <div style="padding:12px; background:var(--bg); border-radius:8px; border:1px solid var(--line); margin-bottom:12px;">
+      <div style="font-size:0.8rem; color:var(--ink-faint);">Total Quantity</div>
+      <div style="font-size:1.3rem; font-weight:700;">${totalQty.toFixed(2)}</div>
+    </div>
+    ${headerHtml}
+    <div style="max-height:280px; overflow-y:auto;">${rowsHtml}</div>
+  `;
+}
+
+function getPaymentInsightsRows(partyId){
+  const from = document.getElementById('paymentFromDate').value;
+  const to = document.getElementById('paymentToDate').value;
+  if(!from || !to) return [];
+  return withRunningBalance(partyId).filter(r => r.date >= from && r.date <= to);
+}
+
+function exportPaymentInsightsPDF(partyId){
+  const party = DB.parties[partyId];
+  const rows = getPaymentInsightsRows(partyId);
+  if(rows.length === 0){ toast('No payment entries available for export.', true); return; }
+  if(!window.jspdf){ toast('PDF library failed to load — check your internet connection.', true); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const marginX = 40;
+  let y = 50;
+  doc.setFont('helvetica','bold'); doc.setFontSize(16);
+  doc.text('Payment Insights', marginX, y); y += 22;
+  doc.setFont('helvetica','normal'); doc.setFontSize(11);
+  doc.text(`Supplier: ${party.name}`, marginX, y); y += 16;
+  doc.text(`Period: ${fmtDate(document.getElementById('paymentFromDate').value)} — ${fmtDate(document.getElementById('paymentToDate').value)}`, marginX, y); y += 20;
+  doc.setFontSize(10);
+  doc.text('Date', marginX, y); doc.text('Type', marginX+90, y); doc.text('Qty', marginX+220, y); doc.text('Amount', marginX+300, y);
+  y += 14; doc.line(marginX, y, 555, y); y += 14;
+  rows.forEach(r => {
+    if(y > 760){ doc.addPage(); y = 50; }
+    doc.text(fmtDate(r.date), marginX, y);
+    doc.text(typeLabel(party.type, r.type), marginX+90, y);
+    doc.text(r.qty!=null ? String(r.qty) : '-', marginX+220, y);
+    const pdfAmount = 'Rs. ' + Math.abs(r.dir * r.amount).toLocaleString('en-IN',{maximumFractionDigits:0});
+    doc.text(pdfAmount, marginX+300, y);
+    y += 14;
+  });
+  doc.save(`PaymentInsights_${party.name.replace(/[^a-z0-9]+/gi,'_')}.pdf`);
+  toast('Payment insights PDF downloaded.');
+}
+
+function exportPaymentInsightsExcel(partyId){
+  const party = DB.parties[partyId];
+  const rows = getPaymentInsightsRows(partyId);
+  if(rows.length === 0){ toast('No payment entries available for export.', true); return; }
+  if(!window.XLSX){ toast('Excel library failed to load — check your internet connection.', true); return; }
+  const aoa = [];
+  aoa.push(['Payment Insights']);
+  aoa.push(['Supplier', party.name]);
+  aoa.push(['Period', `${fmtDate(document.getElementById('paymentFromDate').value)} - ${fmtDate(document.getElementById('paymentToDate').value)}`]);
+  aoa.push([]);
+  aoa.push(['Date','Type','Qty','Unit','Rate','Amount','Comment']);
+  rows.forEach(r => {
+    aoa.push([r.date, typeLabel(party.type, r.type), r.qty!=null?r.qty:'', r.unit||'', r.rate!=null?r.rate:'', r.dir*r.amount, r.comment||'']);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:14},{wch:20},{wch:10},{wch:10},{wch:10},{wch:14},{wch:18}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Payment Insights');
+  XLSX.writeFile(wb, `PaymentInsights_${party.name.replace(/[^a-z0-9]+/gi,'_')}.xlsx`);
+  toast('Payment insights Excel downloaded.');
+}
+
+function exportQuantitySummary(partyId){
+  const party = DB.parties[partyId];
+  const from = document.getElementById('paymentFromDate').value;
+  const to = document.getElementById('paymentToDate').value;
+  if(!from || !to){ toast('Please select both From and To dates.', true); return; }
+  const rows = getPaymentInsightsRows(partyId);
+  if(rows.length === 0){ toast('No payment entries found for the selected dates.', true); return; }
+  
+  const summary = rows.reduce((acc, r) => {
+    if(!r.item) return acc;
+    acc[r.item] = (acc[r.item] || 0) + (r.qty ? parseFloat(r.qty) : 0);
+    return acc;
+  }, {});
+  
+  if(Object.keys(summary).length === 0){ toast('No item quantities found for the selected date range.', true); return; }
+  
+  const aoa = [];
+  aoa.push(['Quantity Summary']);
+  aoa.push(['Supplier', party.name]);
+  aoa.push(['Period', `${fmtDate(from)} - ${fmtDate(to)}`]);
+  aoa.push([]);
+  aoa.push(['Item','Total Quantity']);
+  Object.entries(summary).forEach(([item, qty]) => {
+    aoa.push([item, qty.toFixed(2)]);
+  });
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{wch:30},{wch:18}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Quantity Summary');
+  XLSX.writeFile(wb, `QuantitySummary_${party.name.replace(/[^a-z0-9]+/gi,'_')}.xlsx`);
+  toast('Quantity summary Excel downloaded.');
+}
+
+/* ============================ SHARING & EXPORT ============================ */
+function shareTransactionWhatsApp(partyId, txnId){
+  const party = DB.parties[partyId];
+  const txn = DB.transactions[txnId];
+  if(!txn) return;
+  
+  const message = formatTransactionMessage(party, txn);
+  const whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(message);
+  window.open(whatsappUrl, '_blank');
+  toast('Opening WhatsApp...');
+}
+
+function formatTransactionMessage(party, txn){
+  const typeLabel = party.type === 'customer' ? 'Sale' : 'Purchase';
+  let msg = `📋 *${typeLabel} Invoice*\n\n`;
+  msg += `*${party.type === 'customer' ? 'Customer' : 'Supplier'}:* ${party.name}\n`;
+  msg += `*Date:* ${fmtDate(txn.date)}\n`;
+  if(txn.item) msg += `*Item:* ${txn.item}\n`;
+  if(txn.qty) msg += `*Qty:* ${txn.qty}${txn.unit ? ' ' + txn.unit : ''}\n`;
+  if(txn.rate) msg += `*Rate:* ${inr(txn.rate)}\n`;
+  msg += `*Amount:* ${inr(txn.dir * txn.amount)}\n`;
+  if(txn.comment) msg += `*Note:* ${txn.comment}\n`;
+  msg += `\n_Sent via FinTracker_`;
+  return msg;
+}
+
+function downloadTransactionImage(partyId, txnId){
+  const party = DB.parties[partyId];
+  const txn = DB.transactions[txnId];
+  if(!txn) return;
+  
+  // Create a temporary container for the image
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed; left:-9999px; top:-9999px; width:400px; padding:20px; background:white; font-family:Arial, sans-serif; color:#333;';
+  
+  const signed = txn.dir * txn.amount;
+  const typeLabel = party.type === 'customer' ? 'Sale' : 'Purchase';
+  
+  container.innerHTML = `
+    <div style="text-align:center; margin-bottom:20px; border-bottom:2px solid #333; padding-bottom:10px;">
+      <div style="font-size:18px; font-weight:bold;">FinTracker Invoice</div>
+      <div style="font-size:12px; color:#666;">${typeLabel}</div>
+    </div>
+    <div style="margin-bottom:15px;">
+      <div style="font-weight:bold; font-size:16px;">${esc(party.name)}</div>
+      <div style="font-size:12px; color:#666;">${party.type === 'customer' ? 'Customer' : 'Supplier'}</div>
+    </div>
+    <table style="width:100%; border-collapse:collapse; margin-bottom:15px; font-size:12px;">
+      <tr style="border-bottom:1px solid #ccc;">
+        <td style="padding:8px; font-weight:bold;">Date</td>
+        <td style="padding:8px; text-align:right;">${fmtDate(txn.date)}</td>
+      </tr>
+      ${txn.item ? `<tr style="border-bottom:1px solid #ccc;">
+        <td style="padding:8px; font-weight:bold;">Item</td>
+        <td style="padding:8px; text-align:right;">${esc(txn.item)}</td>
+      </tr>` : ''}
+      ${txn.qty ? `<tr style="border-bottom:1px solid #ccc;">
+        <td style="padding:8px; font-weight:bold;">Quantity</td>
+        <td style="padding:8px; text-align:right;">${txn.qty}${txn.unit ? ' ' + txn.unit : ''}</td>
+      </tr>` : ''}
+      ${txn.rate ? `<tr style="border-bottom:1px solid #ccc;">
+        <td style="padding:8px; font-weight:bold;">Rate</td>
+        <td style="padding:8px; text-align:right;">${inr(txn.rate)}</td>
+      </tr>` : ''}
+      <tr style="border-bottom:2px solid #333;">
+        <td style="padding:8px; font-weight:bold;">Amount</td>
+        <td style="padding:8px; text-align:right; font-weight:bold; font-size:14px;">${signed < 0 ? '− ' : '+ '}${inr(Math.abs(signed))}</td>
+      </tr>
+    </table>
+    ${txn.comment ? `<div style="font-size:11px; padding:10px; background:#f5f5f5; border-radius:4px; margin-bottom:10px;">
+      <strong>Note:</strong> ${esc(txn.comment)}
+    </div>` : ''}
+    <div style="text-align:center; font-size:10px; color:#999; margin-top:10px;">
+      Generated by FinTracker
+    </div>
+  `;
+  
+  document.body.appendChild(container);
+  
+  // Use html2canvas to capture as image
+  if(!window.html2canvas){
+    // Fallback: offer to install html2canvas
+    toast('Installing image capture library...', false);
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+    script.onload = () => {
+      captureAndDownload(container, party, txn);
+    };
+    document.head.appendChild(script);
+  }else{
+    captureAndDownload(container, party, txn);
+  }
+}
+
+function captureAndDownload(container, party, txn){
+  html2canvas(container, { 
+    backgroundColor: '#ffffff',
+    scale: 2,
+    logging: false
+  }).then(canvas => {
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = `${party.name}_invoice_${txn.date}.png`;
+    link.click();
+    document.body.removeChild(container);
+    toast('Image downloaded successfully!');
+  }).catch(err => {
+    document.body.removeChild(container);
+    toast('Failed to generate image: ' + err.message, true);
+  });
+}
+function exportPDF(partyId){
+  const party=DB.parties[partyId];
+  const rows=withRunningBalance(partyId);
+  const customFieldDefs = DB.fieldDefs[party.type].txnFields||[];
+  if(!window.jspdf){ toast('PDF library failed to load — check your internet connection.', true); return; }
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt', format:'a4'});
+  const marginX=40; let y=50;
+  const pageH=800;
+
+  function header(){
+    doc.setFont('helvetica','bold'); doc.setFontSize(16);
+    doc.text(BUSINESS_NAME, marginX, y); y+=20;
+    doc.setFont('helvetica','normal'); doc.setFontSize(11);
+    doc.text('FinTracker — Ledger Statement', marginX, y); y+=18;
+    doc.setFontSize(10);
+    doc.text((party.type==='customer'?'Customer: ':'Supplier: ')+party.name, marginX, y); y+=14;
+    if(party.phone){ doc.text('Phone: '+party.phone, marginX, y); y+=14; }
+    if(party.address){ doc.text('Address: '+party.address, marginX, y); y+=14; }
+    if(party.site){ doc.text('Site/Ref: '+party.site, marginX, y); y+=14; }
+    doc.text('Generated: '+fmtDate(todayISO()), marginX, y); y+=18;
+  }
+  const itemLabel = party.type==='customer' ? 'Item' : 'Brand';
+  const cols = ['Date','Type', itemLabel,'Qty','Unit','Rate','Amount','Balance', ...customFieldDefs.map(f=>f.label),'Comment'];
+  const baseW = [55,72,62,32,40,48,62,62];
+  const widths = baseW.concat(customFieldDefs.map(()=>55)).concat([80]);
+
+  function tableHeader(){
+    doc.setFont('helvetica','bold'); doc.setFontSize(8.5);
+    let x=marginX;
+    cols.forEach((c,i)=>{ doc.text(String(c), x, y); x+=widths[i]; });
+    y+=4; doc.setLineWidth(0.5);
+    doc.line(marginX, y, marginX+widths.reduce((a,b)=>a+b,0), y);
+    y+=12;
+    doc.setFont('helvetica','normal'); doc.setFontSize(8.5);
+  }
+  header();
+  tableHeader();
+  rows.forEach(r=>{
+    if(y>pageH){ doc.addPage(); y=50; tableHeader(); }
+    let x=marginX;
+    const signed=r.dir*r.amount;
+    const vals=[
+      fmtDate(r.date), typeLabel(party.type, r.type), r.item||'-',
+      r.qty!=null&&r.qty!==''?String(r.qty):'-', r.unit||'-', r.rate!=null&&r.rate!==''?inrPlain(r.rate):'-',
+      (signed<0?'-':'+')+inrPlain(Math.abs(signed)), inrPlain(r.balance),
+      ...customFieldDefs.map(f=> (r.custom&&r.custom[f.key])||'-'),
+      r.comment||'-'
+    ];
+    vals.forEach((v,i)=>{ doc.text(String(v).slice(0,28), x, y); x+=widths[i]; });
+    y+=13;
+  });
+  y+=12;
+  const bal=computeBalance(partyId);
+  doc.setFont('helvetica','bold'); doc.setFontSize(10);
+  doc.text('Closing Balance: '+inrPlain(Math.abs(bal))+' '+(Math.abs(bal)<1?'(Settled)':(bal>0?(party.type==='customer'?'(Receivable)':'(Payable)'):'(Advance)')), marginX, y);
+  doc.save('ShreeTraders_'+party.name.replace(/[^a-z0-9]+/gi,'_')+'_statement.pdf');
+  toast('PDF downloaded.');
+}
+function exportExcel(partyId){
+  if(!window.XLSX){ toast('Excel library failed to load — check your internet connection.', true); return; }
+  const party=DB.parties[partyId];
+  const rows=withRunningBalance(partyId);
+  const customFieldDefs = DB.fieldDefs[party.type].txnFields||[];
+  const aoa=[];
+  aoa.push([BUSINESS_NAME]);
+  aoa.push(['FinTracker Ledger Statement']);
+  aoa.push([]);
+  aoa.push([party.type==='customer'?'Customer':'Supplier', party.name]);
+  if(party.phone) aoa.push(['Phone', party.phone]);
+  if(party.address) aoa.push(['Address', party.address]);
+  if(party.site) aoa.push(['Site/Ref', party.site]);
+  (DB.fieldDefs[party.type].partyFields||[]).forEach(f=>{
+    if(party.custom && party.custom[f.key]) aoa.push([f.label, party.custom[f.key]]);
+  });
+  aoa.push([]);
+  const itemLabel = party.type==='customer' ? 'Item Name' : 'Brand Name';
+  const header = ['Date','Txn Type', itemLabel,'Qty','Unit','Rate','Amount','Total Balance', ...customFieldDefs.map(f=>f.label),'Comment'];
+  aoa.push(header);
+  rows.forEach(r=>{
+    aoa.push([
+      r.date, typeLabel(party.type, r.type), r.item||'', r.qty!=null?r.qty:'', r.unit||'', r.rate!=null?r.rate:'',
+      r.dir*r.amount, r.balance, ...customFieldDefs.map(f=>(r.custom&&r.custom[f.key])||''), r.comment||''
+    ]);
+  });
+  aoa.push([]);
+  aoa.push(['Closing Balance', computeBalance(partyId)]);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=header.map(()=>({wch:16}));
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Ledger');
+  XLSX.writeFile(wb, 'ShreeTraders_'+party.name.replace(/[^a-z0-9]+/gi,'_')+'_ledger.xlsx');
+  toast('Excel file downloaded.');
+}
+
+/* ============================ ANALYSIS ============================ */
+function periodKey(dateStr, g){
+  const d=new Date(dateStr+'T00:00:00');
+  const y=d.getFullYear(), m=d.getMonth();
+  if(g==='day') return dateStr;
+  if(g==='month') return y+'-'+String(m+1).padStart(2,'0');
+  if(g==='quarter') return y+'-Q'+(Math.floor(m/3)+1);
+  return String(y);
+}
+function periodLabel(key, g){
+  if(g==='month'){ const [y,m]=key.split('-'); return new Date(y, Number(m)-1, 1).toLocaleDateString('en-IN',{month:'short',year:'2-digit'}); }
+  if(g==='day'){ return fmtDate(key); }
+  return key;
+}
+function aggregate(g){
+  const map={};
+  Object.values(DB.transactions).forEach(t=>{
+    const party=DB.parties[t.partyId]; if(!party || !t.date) return;
+    const key=periodKey(t.date, g);
+    if(!map[key]) map[key]={sales:0, collections:0, purchases:0, paymentsout:0};
+    if(party.type==='customer'){
+      if(t.dir>0) map[key].sales+=t.amount; else map[key].collections+=t.amount;
+    }else{
+      if(t.dir>0) map[key].purchases+=t.amount; else map[key].paymentsout+=t.amount;
+    }
+  });
+  return map;
+}
+let mainChartInst=null, cashChartInst=null;
+function renderAnalysis(){
+  const map=aggregate(currentGran);
+  let keys=Object.keys(map).sort();
+  const maxPoints = currentGran==='day'?21 : currentGran==='month'?12 : currentGran==='quarter'?8 : 6;
+  if(keys.length>maxPoints) keys=keys.slice(-maxPoints);
+
+  const totSales=keys.reduce((s,k)=>s+map[k].sales,0);
+  const totPurchases=keys.reduce((s,k)=>s+map[k].purchases,0);
+  const totCollections=keys.reduce((s,k)=>s+map[k].collections,0);
+  const totPaidOut=keys.reduce((s,k)=>s+map[k].paymentsout,0);
+  const margin=totSales-totPurchases;
+  const netCash=totCollections-totPaidOut;
+
+  document.getElementById('summaryGrid').innerHTML=`
+    <div class="stat-card"><div class="lbl">Sales (selected range)</div><div class="val good">${inr(totSales)}</div></div>
+    <div class="stat-card"><div class="lbl">Purchases (selected range)</div><div class="val">${inr(totPurchases)}</div></div>
+    <div class="stat-card"><div class="lbl">Gross Margin</div><div class="val ${margin>=0?'good':'bad'}">${margin>=0?'':'−'}${inr(Math.abs(margin))}</div></div>
+    <div class="stat-card"><div class="lbl">Net Cash Flow</div><div class="val ${netCash>=0?'good':'bad'}">${netCash>=0?'':'−'}${inr(Math.abs(netCash))}</div></div>
+  `;
+
+  const labels=keys.map(k=>periodLabel(k,currentGran));
+  const salesData=keys.map(k=>map[k].sales);
+  const purchData=keys.map(k=>map[k].purchases);
+  const marginData=keys.map(k=>map[k].sales-map[k].purchases);
+  const collData=keys.map(k=>map[k].collections);
+  const paidData=keys.map(k=>map[k].paymentsout);
+
+  const ctx1=document.getElementById('mainChart');
+  if(mainChartInst) mainChartInst.destroy();
+  if(window.Chart){
+    mainChartInst=new Chart(ctx1, {
+      data:{ labels, datasets:[
+        {type:'bar', label:'Sales', data:salesData, backgroundColor:'rgba(110,155,176,0.55)', borderRadius:4},
+        {type:'bar', label:'Purchases', data:purchData, backgroundColor:'rgba(193,101,47,0.5)', borderRadius:4},
+        {type:'line', label:'Gross Margin', data:marginData, borderColor:'#73a86e', backgroundColor:'transparent', tension:0.3, borderWidth:2, pointRadius:3}
+      ]},
+      options:{
+        responsive:true,
+        scales:{ x:{ticks:{color:'#a9a496'}, grid:{color:'rgba(236,231,218,0.06)'}}, y:{ticks:{color:'#a9a496'}, grid:{color:'rgba(236,231,218,0.06)'}} },
+        plugins:{ legend:{labels:{color:'#ece7da'}} }
+      }
+    });
+
+    const ctx2=document.getElementById('cashChart');
+    if(cashChartInst) cashChartInst.destroy();
+    cashChartInst=new Chart(ctx2, {
+      type:'bar',
+      data:{ labels, datasets:[
+        {label:'Collected from Customers', data:collData, backgroundColor:'rgba(115,168,110,0.55)', borderRadius:4},
+        {label:'Paid to Suppliers', data:paidData, backgroundColor:'rgba(207,91,68,0.5)', borderRadius:4}
+      ]},
+      options:{
+        responsive:true,
+        scales:{ x:{ticks:{color:'#a9a496'}, grid:{color:'rgba(236,231,218,0.06)'}}, y:{ticks:{color:'#a9a496'}, grid:{color:'rgba(236,231,218,0.06)'}} },
+        plugins:{ legend:{labels:{color:'#ece7da'}} }
+      }
+    });
+  }
+
+  const ptable=document.getElementById('periodTable');
+  let thead=`<thead><tr><th>Period</th><th>Sales</th><th>Purchases</th><th>Margin</th><th>Collected</th><th>Paid Out</th></tr></thead>`;
+  let tbody='<tbody>'+keys.slice().reverse().map(k=>{
+    const m=map[k]; const mg=m.sales-m.purchases;
+    return `<tr><td>${periodLabel(k,currentGran)}</td><td>${inr(m.sales)}</td><td>${inr(m.purchases)}</td>
+      <td style="color:${mg>=0?'var(--good)':'var(--bad)'}">${inr(mg)}</td><td>${inr(m.collections)}</td><td>${inr(m.paymentsout)}</td></tr>`;
+  }).join('') + '</tbody>';
+  if(keys.length===0) tbody=`<tbody><tr><td colspan="6" style="text-align:center; color:var(--ink-faint); padding:24px;">No transactions recorded yet.</td></tr></tbody>`;
+  ptable.innerHTML=thead+tbody;
+}
+document.getElementById('granSwitch').addEventListener('click', e=>{
+  const btn=e.target.closest('button'); if(!btn) return;
+  currentGran=btn.dataset.gran;
+  document.querySelectorAll('#granSwitch button').forEach(b=>b.classList.toggle('active', b===btn));
+  renderAnalysis();
+});
+
+/* ============================ NAV / SETTINGS ============================ */
+document.querySelectorAll('.navbtn[data-nav]').forEach(b=>b.addEventListener('click', ()=>showView(b.dataset.nav)));
+document.getElementById('brandHome').addEventListener('click', ()=>showView('dashboard'));
+
+const settingsBtn=document.getElementById('settingsBtn'), settingsPop=document.getElementById('settingsPop');
+settingsBtn.addEventListener('click', e=>{ e.stopPropagation(); settingsPop.classList.toggle('show'); });
+document.addEventListener('click', e=>{ if(!e.target.closest('#settingsPop') && e.target!==settingsBtn) settingsPop.classList.remove('show'); });
+
+document.getElementById('btnBackup').addEventListener('click', ()=>{
+  const blob=new Blob([JSON.stringify(DB,null,2)], {type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download='fintracker_backup_'+todayISO()+'.json'; a.click();
+  URL.revokeObjectURL(url);
+  settingsPop.classList.remove('show');
+  toast('Backup downloaded.');
+});
+document.getElementById('btnRestoreTrigger').addEventListener('click', ()=>{
+  document.getElementById('restoreFile').click();
+  settingsPop.classList.remove('show');
+});
+document.getElementById('restoreFile').addEventListener('change', function(){
+  const file=this.files[0]; if(!file) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      confirmDialog('Restoring will replace all current data in this browser with the backup file. Continue?', ()=>{
+        DB=data; ensureShape(); saveDB();
+        toast('Backup restored.');
+        showView('dashboard');
+      });
+    }catch(err){ toast('That file is not a valid FinTracker backup.', true); }
+  };
+  reader.readAsText(file);
+  this.value='';
+});
+document.getElementById('btnResetAll').addEventListener('click', ()=>{
+  settingsPop.classList.remove('show');
+  confirmDialog('This will permanently delete every customer, supplier and transaction stored in this browser. Continue?', ()=>{
+    DB=freshDB(); saveDB();
+    toast('All data cleared.');
+    showView('dashboard');
+  });
+});
+
+/* ============================ INIT ============================ */
+function init(){
+  loadDB();
+  document.getElementById('loadingOverlay').style.display='none';
+  document.getElementById('app').style.display='block';
+  renderDashboard();
+}
+init();
+
+})();
+</script>
+</body>
+</html>
